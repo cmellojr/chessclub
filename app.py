@@ -1,7 +1,15 @@
+from chessdotcom import Client, get_leaderboards
 from flask import Flask, jsonify
 import requests
 import json
 
+Client.request_config = {
+    "headers": {
+        "User-Agent": "ChessClubStats/1.0 (contato: seu@email.com)"
+    },
+    # opcional: timeout, retries etc.
+    # "timeout": 20,
+}
 app = Flask(__name__)
 
 CHESS_API_BASE = "https://api.chess.com/pub/club"
