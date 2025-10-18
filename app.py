@@ -1,9 +1,21 @@
 from flask import Flask, jsonify
 import requests
+import json
 
 app = Flask(__name__)
 
 CHESS_API_BASE = "https://api.chess.com/pub/club"
+
+username = "magnuscarlsen"  # Replace with the desired username
+url = f"https://api.chess.com/pub/player/{username}"
+
+response = requests.get(url)
+
+if response.status_code == 200:
+    player_data = json.loads(response.text)
+    print(player_data)
+else:
+    print(f"Error: {response.status_code}")
 
 
 # Função auxiliar para requisições GET
