@@ -53,15 +53,16 @@ class ChessComClient(ChessProvider):
             )
             if r.status_code == 401:
                 raise PermissionError(
-                    "Autenticação necessária. "
-                    "Defina as variáveis de ambiente CHESSCOM_ACCESS_TOKEN e CHESSCOM_PHPSESSID."
+                    "Authentication required. "
+                    "Set the CHESSCOM_ACCESS_TOKEN and CHESSCOM_PHPSESSID environment variables, "
+                    "or run 'chessclub auth setup'."
                 )
             r.raise_for_status()
             data = r.json()
 
             page_items: list[dict] = []
             for t in data.get("live_tournament", []):
-                t["tournament_type"] = "suíço"
+                t["tournament_type"] = "swiss"
                 page_items.append(t)
             for t in data.get("arena", []):
                 t["tournament_type"] = "arena"

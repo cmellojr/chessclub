@@ -44,7 +44,7 @@ class Tournament:
 
 
 # ----------------------
-# TournamentResult (futuro)
+# TournamentResult (future use)
 # ----------------------
 
 @dataclass

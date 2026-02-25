@@ -10,7 +10,7 @@ from chessclub.services.club_service import ClubService
 
 app = typer.Typer()
 club_app = typer.Typer()
-auth_app = typer.Typer(help="Gerenciar autenticação com o Chess.com.")
+auth_app = typer.Typer(help="Manage Chess.com authentication.")
 
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
@@ -23,7 +23,7 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 def _load_credentials() -> tuple[str | None, str | None]:
-    """Env vars têm prioridade; depois lê do arquivo de configuração."""
+    """Env vars take priority; falls back to the config file."""
     access_token = os.getenv("CHESSCOM_ACCESS_TOKEN")
     phpsessid = os.getenv("CHESSCOM_PHPSESSID")
     if access_token and phpsessid:
@@ -35,7 +35,7 @@ def _load_credentials() -> tuple[str | None, str | None]:
 def _get_service() -> ClubService:
     access_token, phpsessid = _load_credentials()
     provider = ChessComClient(
-        user_agent="Chessclub/0.1 (contato: cmellojr@gmail.com)",
+        user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
         access_token=access_token,
         phpsessid=phpsessid,
     )
@@ -48,75 +48,75 @@ def _get_service() -> ClubService:
 
 @auth_app.command()
 def setup():
-    """Configura as credenciais do Chess.com e salva localmente."""
-    console.print("\n[bold]Configuração de credenciais do Chess.com[/bold]\n")
-    console.print("Vamos abrir o Chess.com no seu browser. Faça login normalmente e siga as instruções abaixo.\n")
+    """Configure and save Chess.com credentials locally."""
+    console.print("\n[bold]Chess.com credentials setup[/bold]\n")
+    console.print("We'll open Chess.com in your browser. Log in normally and follow the instructions below.\n")
 
-    typer.confirm("Pressione Enter para abrir o browser", default=True, prompt_suffix=" ")
+    typer.confirm("Press Enter to open the browser", default=True, prompt_suffix=" ")
     webbrowser.open("https://www.chess.com/login")
 
-    console.print("\n[bold]Como obter os cookies após o login:[/bold]")
-    console.print("  1. Com o Chess.com aberto, pressione [cyan]F12[/cyan] para abrir o DevTools")
-    console.print("  2. Vá para a aba [cyan]Application[/cyan] (Chrome) ou [cyan]Storage[/cyan] (Firefox)")
-    console.print("  3. No menu lateral, clique em [cyan]Cookies → https://www.chess.com[/cyan]")
-    console.print("  4. Copie o valor de [cyan]ACCESS_TOKEN[/cyan] e [cyan]PHPSESSID[/cyan]\n")
+    console.print("\n[bold]How to retrieve cookies after login:[/bold]")
+    console.print("  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools")
+    console.print("  2. Go to the [cyan]Application[/cyan] tab (Chrome) or [cyan]Storage[/cyan] (Firefox)")
+    console.print("  3. In the sidebar, click [cyan]Cookies → https://www.chess.com[/cyan]")
+    console.print("  4. Copy the value of [cyan]ACCESS_TOKEN[/cyan] and [cyan]PHPSESSID[/cyan]\n")
 
-    access_token = typer.prompt("Cole o valor de ACCESS_TOKEN", hide_input=True)
-    phpsessid = typer.prompt("Cole o valor de PHPSESSID", hide_input=True)
+    access_token = typer.prompt("Paste the ACCESS_TOKEN value", hide_input=True)
+    phpsessid = typer.prompt("Paste the PHPSESSID value", hide_input=True)
 
-    console.print("\n[dim]Validando credenciais...[/dim]")
+    console.print("\n[dim]Validating credentials...[/dim]")
     try:
         client = ChessComClient(
-            user_agent="Chessclub/0.1 (contato: cmellojr@gmail.com)",
+            user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
             access_token=access_token,
             phpsessid=phpsessid,
         )
         client.get_club("chess-com-developer-community")
     except Exception as e:
-        console.print(f"[red]Erro ao validar credenciais:[/red] {e}")
+        console.print(f"[red]Failed to validate credentials:[/red] {e}")
         raise typer.Exit(1)
 
     creds_store.save(access_token, phpsessid)
-    console.print(f"[green]✓ Credenciais salvas em:[/green] {creds_store.credentials_path()}")
-    console.print("[dim]O ACCESS_TOKEN expira em ~24h. Rode [bold]chessclub auth setup[/bold] novamente quando necessário.[/dim]\n")
+    console.print(f"[green]✓ Credentials saved to:[/green] {creds_store.credentials_path()}")
+    console.print("[dim]ACCESS_TOKEN expires in ~24h. Run [bold]chessclub auth setup[/bold] again when needed.[/dim]\n")
 
 
 @auth_app.command()
 def status():
-    """Exibe o status das credenciais configuradas."""
+    """Show the status of configured credentials."""
     access_token, phpsessid = _load_credentials()
 
     if not access_token or not phpsessid:
-        console.print("[yellow]Nenhuma credencial configurada.[/yellow]")
-        console.print("Execute [bold]chessclub auth setup[/bold] para configurar.")
+        console.print("[yellow]No credentials configured.[/yellow]")
+        console.print("Run [bold]chessclub auth setup[/bold] to configure.")
         raise typer.Exit(1)
 
-    source = "variáveis de ambiente" if os.getenv("CHESSCOM_ACCESS_TOKEN") else creds_store.credentials_path()
-    console.print(f"[green]✓ Credenciais encontradas[/green] ({source})")
+    source = "environment variables" if os.getenv("CHESSCOM_ACCESS_TOKEN") else creds_store.credentials_path()
+    console.print(f"[green]✓ Credentials found[/green] ({source})")
 
-    console.print("[dim]Validando com o Chess.com...[/dim]")
+    console.print("[dim]Validating with Chess.com...[/dim]")
     try:
         client = ChessComClient(
-            user_agent="Chessclub/0.1 (contato: cmellojr@gmail.com)",
+            user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
             access_token=access_token,
             phpsessid=phpsessid,
         )
         client.get_club("chess-com-developer-community")
-        console.print("[green]✓ Credenciais válidas.[/green]")
+        console.print("[green]✓ Credentials are valid.[/green]")
     except PermissionError:
-        console.print("[red]✗ Credenciais expiradas ou inválidas.[/red]")
-        console.print("Execute [bold]chessclub auth setup[/bold] para renovar.")
+        console.print("[red]✗ Credentials expired or invalid.[/red]")
+        console.print("Run [bold]chessclub auth setup[/bold] to renew.")
         raise typer.Exit(1)
 
 
 @auth_app.command()
 def clear():
-    """Remove as credenciais salvas localmente."""
+    """Remove locally saved credentials."""
     removed = creds_store.clear()
     if removed:
-        console.print("[green]✓ Credenciais removidas.[/green]")
+        console.print("[green]✓ Credentials removed.[/green]")
     else:
-        console.print("[yellow]Nenhuma credencial salva encontrada.[/yellow]")
+        console.print("[yellow]No saved credentials found.[/yellow]")
 
 
 # ---------------------------------------------------------------------------
@@ -125,18 +125,18 @@ def clear():
 
 @club_app.command()
 def stats(slug: str):
-    """Exibe o nome do clube."""
+    """Display the club name."""
     service = _get_service()
     print(service.get_club_name(slug))
 
 
 @club_app.command()
 def members(slug: str):
-    """Lista os membros do clube."""
+    """List club members."""
     service = _get_service()
     data = service.get_club_members(slug)
 
-    table = Table(title=f"Membros — {slug}")
+    table = Table(title=f"Members — {slug}")
     table.add_column("Username", style="cyan")
     for m in data:
         table.add_row(m.get("username", ""))
@@ -146,7 +146,7 @@ def members(slug: str):
 
 @club_app.command()
 def tournaments(slug: str):
-    """Lista os torneios organizados pelo clube."""
+    """List tournaments organized by the club."""
     def fmt_date(ts) -> str:
         if not ts:
             return "—"
@@ -156,15 +156,15 @@ def tournaments(slug: str):
         service = _get_service()
         data = service.get_club_tournaments(slug)
     except PermissionError as e:
-        console.print(f"[red]Erro:[/red] {e}", highlight=False)
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 
-    table = Table(title=f"Torneios — {slug}", show_lines=False)
-    table.add_column("Nome", style="cyan", no_wrap=False)
-    table.add_column("Tipo", style="dim")
-    table.add_column("Data", justify="right")
-    table.add_column("Jogadores", justify="right")
-    table.add_column("Pts vencedor", justify="right")
+    table = Table(title=f"Tournaments — {slug}", show_lines=False)
+    table.add_column("Name", style="cyan", no_wrap=False)
+    table.add_column("Type", style="dim")
+    table.add_column("Date", justify="right")
+    table.add_column("Players", justify="right")
+    table.add_column("Winner pts", justify="right")
 
     for t in data:
         winner = t.get("winner") or {}
@@ -178,4 +178,4 @@ def tournaments(slug: str):
         )
 
     console.print(table)
-    console.print(f"[dim]Total: {len(data)} torneios[/]")
+    console.print(f"[dim]Total: {len(data)} tournaments[/]")

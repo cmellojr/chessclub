@@ -12,9 +12,7 @@ BASE_URL = "https://api.chess.com/pub"
 
 
 class ChessComProvider(BaseProvider):
-    """
-    Provider para API pública do Chess.com.
-    """
+    """Provider for the Chess.com public API."""
 
     def __init__(self, user_agent: str, timeout: int = 10, max_retries: int = 3):
         super().__init__(user_agent)
@@ -45,13 +43,13 @@ class ChessComProvider(BaseProvider):
                 continue
 
             raise Exception(
-                f"Erro HTTP {response.status_code}: {response.text}"
+                f"HTTP error {response.status_code}: {response.text}"
             )
 
-        raise Exception("Número máximo de tentativas excedido.")
+        raise Exception("Maximum number of retries exceeded.")
 
     # -------------------------
-    # CLUB
+    # Club
     # -------------------------
 
     def get_club(self, club_id: str) -> Club:
@@ -70,13 +68,13 @@ class ChessComProvider(BaseProvider):
 
         members = []
 
-        # Chess.com separa por roles
+        # Chess.com groups members by role
         for role in ["admin", "moderator", "member"]:
             for m in data.get(role, []):
                 members.append(
                     Member(
                         username=m.get("username"),
-                        rating=None,  # rating não vem aqui
+                        rating=None,  # rating is not available from this endpoint
                         title=None,
                         joined_at=None
                     )
@@ -85,7 +83,7 @@ class ChessComProvider(BaseProvider):
         return members
 
     # -------------------------
-    # TOURNAMENTS
+    # Tournaments
     # -------------------------
 
     def get_club_tournaments(self, club_id: str) -> List[Tournament]:
@@ -108,15 +106,11 @@ class ChessComProvider(BaseProvider):
         return tournaments
 
     def get_tournament_details(self, tournament_id: str) -> dict:
-        """
-        Retorna detalhes de um torneio específico.
-        """
+        """Return details for a specific tournament."""
         data = self._get(f"/match/{tournament_id}")
         return data
 
     def download_tournament_pgn(self, tournament_id: str) -> str:
-        """
-        Retorna o PGN completo de um torneio.
-        """
+        """Return the full PGN for a tournament."""
         data = self._get(f"/match/{tournament_id}")
         return data.get("pgn", "")
