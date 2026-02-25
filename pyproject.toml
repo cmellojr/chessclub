@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-chessclub = "chessclub.cli:main"
+chessclub = "chessclub_cli.main:app"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
