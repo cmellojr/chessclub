@@ -1,55 +1,66 @@
-# src/chessclub/core/models.py
+"""Data model dataclasses shared across providers."""
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 # ----------------------
 # Club
 # ----------------------
 
+
 @dataclass
 class Club:
+    """Represents a chess club."""
+
     id: str
     name: str
-    description: Optional[str]
-    country: Optional[str]
-    url: Optional[str]
+    description: str | None
+    country: str | None
+    url: str | None
 
 
 # ----------------------
 # Member
 # ----------------------
 
+
 @dataclass
 class Member:
+    """Represents a club member."""
+
     username: str
-    rating: Optional[int]
-    title: Optional[str]
-    joined_at: Optional[str]
+    rating: int | None
+    title: str | None
+    joined_at: str | None
 
 
 # ----------------------
 # Tournament
 # ----------------------
 
+
 @dataclass
 class Tournament:
+    """Represents a tournament organised by a club."""
+
     id: str
     name: str
     status: str
-    start_date: Optional[str]
-    end_date: Optional[str]
-    winner: Optional[str]
+    start_date: str | None
+    end_date: str | None
+    winner: str | None
 
 
 # ----------------------
 # TournamentResult (future use)
 # ----------------------
 
+
 @dataclass
 class TournamentResult:
+    """Represents a player's result in a tournament."""
+
     tournament_id: str
     player: str
     position: int
-    score: Optional[float]
+    score: float | None

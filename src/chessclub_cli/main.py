@@ -1,9 +1,14 @@
+"""CLI entry point for the chessclub tool."""
+
 import os
 import webbrowser
-import typer
 from datetime import datetime
+
+import requests
+import typer
 from rich.console import Console
 from rich.table import Table
+
 from chessclub.auth import credentials as creds_store
 from chessclub.providers.chesscom.client import ChessComClient
 from chessclub.services.club_service import ClubService
@@ -17,13 +22,22 @@ app.add_typer(auth_app, name="auth")
 
 console = Console()
 
+_USER_AGENT = "Chessclub/0.1 (contact: cmellojr@gmail.com)"
+_VALIDATION_CLUB = "chess-com-developer-community"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_credentials() -> tuple[str | None, str | None]:
-    """Env vars take priority; falls back to the config file."""
+    """Return credentials from env vars, falling back to the config file.
+
+    Returns:
+        A tuple of (access_token, phpsessid).  Either value may be ``None``
+        if not configured.
+    """
     access_token = os.getenv("CHESSCOM_ACCESS_TOKEN")
     phpsessid = os.getenv("CHESSCOM_PHPSESSID")
     if access_token and phpsessid:
@@ -33,33 +47,68 @@ def _load_credentials() -> tuple[str | None, str | None]:
 
 
 def _get_service() -> ClubService:
+    """Build and return a ClubService using the configured credentials.
+
+    Returns:
+        A :class:`ClubService` backed by a :class:`ChessComClient`.
+    """
     access_token, phpsessid = _load_credentials()
     provider = ChessComClient(
-        user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
+        user_agent=_USER_AGENT,
         access_token=access_token,
         phpsessid=phpsessid,
     )
     return ClubService(provider)
 
 
+def _fmt_date(timestamp) -> str:
+    """Format a Unix timestamp as a ``YYYY-MM-DD`` string.
+
+    Args:
+        timestamp: A Unix timestamp (int, float, or string).  Returns an
+            em-dash if falsy.
+
+    Returns:
+        A formatted date string or ``"—"`` when the timestamp is absent.
+    """
+    if not timestamp:
+        return "—"
+    return datetime.fromtimestamp(int(timestamp)).strftime("%Y-%m-%d")
+
+
 # ---------------------------------------------------------------------------
 # auth commands
 # ---------------------------------------------------------------------------
+
 
 @auth_app.command()
 def setup():
     """Configure and save Chess.com credentials locally."""
     console.print("\n[bold]Chess.com credentials setup[/bold]\n")
-    console.print("We'll open Chess.com in your browser. Log in normally and follow the instructions below.\n")
+    console.print(
+        "We'll open Chess.com in your browser. "
+        "Log in normally and follow the instructions below.\n"
+    )
 
-    typer.confirm("Press Enter to open the browser", default=True, prompt_suffix=" ")
+    typer.confirm(
+        "Press Enter to open the browser", default=True, prompt_suffix=" "
+    )
     webbrowser.open("https://www.chess.com/login")
 
     console.print("\n[bold]How to retrieve cookies after login:[/bold]")
     console.print("  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools")
-    console.print("  2. Go to the [cyan]Application[/cyan] tab (Chrome) or [cyan]Storage[/cyan] (Firefox)")
-    console.print("  3. In the sidebar, click [cyan]Cookies → https://www.chess.com[/cyan]")
-    console.print("  4. Copy the value of [cyan]ACCESS_TOKEN[/cyan] and [cyan]PHPSESSID[/cyan]\n")
+    console.print(
+        "  2. Go to the [cyan]Application[/cyan] tab (Chrome) "
+        "or [cyan]Storage[/cyan] (Firefox)"
+    )
+    console.print(
+        "  3. In the sidebar, click "
+        "[cyan]Cookies → https://www.chess.com[/cyan]"
+    )
+    console.print(
+        "  4. Copy the value of "
+        "[cyan]ACCESS_TOKEN[/cyan] and [cyan]PHPSESSID[/cyan]\n"
+    )
 
     access_token = typer.prompt("Paste the ACCESS_TOKEN value", hide_input=True)
     phpsessid = typer.prompt("Paste the PHPSESSID value", hide_input=True)
@@ -67,18 +116,23 @@ def setup():
     console.print("\n[dim]Validating credentials...[/dim]")
     try:
         client = ChessComClient(
-            user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
+            user_agent=_USER_AGENT,
             access_token=access_token,
             phpsessid=phpsessid,
         )
-        client.get_club("chess-com-developer-community")
-    except Exception as e:
+        client.get_club(_VALIDATION_CLUB)
+    except requests.RequestException as e:
         console.print(f"[red]Failed to validate credentials:[/red] {e}")
         raise typer.Exit(1)
 
     creds_store.save(access_token, phpsessid)
-    console.print(f"[green]✓ Credentials saved to:[/green] {creds_store.credentials_path()}")
-    console.print("[dim]ACCESS_TOKEN expires in ~24h. Run [bold]chessclub auth setup[/bold] again when needed.[/dim]\n")
+    console.print(
+        f"[green]✓ Credentials saved to:[/green] {creds_store.credentials_path()}"
+    )
+    console.print(
+        "[dim]ACCESS_TOKEN expires in ~24h. "
+        "Run [bold]chessclub auth setup[/bold] again when needed.[/dim]\n"
+    )
 
 
 @auth_app.command()
@@ -91,17 +145,21 @@ def status():
         console.print("Run [bold]chessclub auth setup[/bold] to configure.")
         raise typer.Exit(1)
 
-    source = "environment variables" if os.getenv("CHESSCOM_ACCESS_TOKEN") else creds_store.credentials_path()
+    source = (
+        "environment variables"
+        if os.getenv("CHESSCOM_ACCESS_TOKEN")
+        else creds_store.credentials_path()
+    )
     console.print(f"[green]✓ Credentials found[/green] ({source})")
 
     console.print("[dim]Validating with Chess.com...[/dim]")
     try:
         client = ChessComClient(
-            user_agent="Chessclub/0.1 (contact: cmellojr@gmail.com)",
+            user_agent=_USER_AGENT,
             access_token=access_token,
             phpsessid=phpsessid,
         )
-        client.get_club("chess-com-developer-community")
+        client.get_club(_VALIDATION_CLUB)
         console.print("[green]✓ Credentials are valid.[/green]")
     except PermissionError:
         console.print("[red]✗ Credentials expired or invalid.[/red]")
@@ -122,6 +180,7 @@ def clear():
 # ---------------------------------------------------------------------------
 # club commands
 # ---------------------------------------------------------------------------
+
 
 @club_app.command()
 def stats(slug: str):
@@ -146,12 +205,7 @@ def members(slug: str):
 
 @club_app.command()
 def tournaments(slug: str):
-    """List tournaments organized by the club."""
-    def fmt_date(ts) -> str:
-        if not ts:
-            return "—"
-        return datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d")
-
+    """List tournaments organised by the club."""
     try:
         service = _get_service()
         data = service.get_club_tournaments(slug)
@@ -172,7 +226,7 @@ def tournaments(slug: str):
         table.add_row(
             t.get("name", ""),
             t.get("tournament_type", ""),
-            fmt_date(t.get("start_time")),
+            _fmt_date(t.get("start_time")),
             str(t.get("registered_user_count", 0)),
             score,
         )

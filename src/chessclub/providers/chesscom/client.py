@@ -1,8 +1,18 @@
+"""Chess.com provider using the public and internal web APIs."""
+
 import requests
+
 from chessclub.core.interfaces import ChessProvider
 
 
 class ChessComClient(ChessProvider):
+    """Provider for Chess.com that combines the public API and internal endpoints.
+
+    The public API (api.chess.com/pub) requires no authentication and is used
+    for club metadata and member lists.  The internal web API
+    (www.chess.com/callback) requires session cookies and is used for
+    club-organised tournament data.
+    """
 
     BASE_URL = "https://api.chess.com/pub"
     WEB_BASE_URL = "https://www.chess.com"
@@ -13,6 +23,15 @@ class ChessComClient(ChessProvider):
         access_token: str | None = None,
         phpsessid: str | None = None,
     ):
+        """Initialise the client.
+
+        Args:
+            user_agent: The User-Agent header value for all HTTP requests.
+            access_token: Chess.com ACCESS_TOKEN cookie value.  Required only
+                for endpoints that use the internal web API.
+            phpsessid: Chess.com PHPSESSID cookie value.  Required together
+                with access_token for authenticated endpoints.
+        """
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": user_agent,
@@ -20,16 +39,46 @@ class ChessComClient(ChessProvider):
             "Accept": "application/json",
         })
         if access_token:
-            self.session.cookies.set("ACCESS_TOKEN", access_token, domain="www.chess.com")
+            self.session.cookies.set(
+                "ACCESS_TOKEN", access_token, domain="www.chess.com"
+            )
         if phpsessid:
-            self.session.cookies.set("PHPSESSID", phpsessid, domain="www.chess.com")
+            self.session.cookies.set(
+                "PHPSESSID", phpsessid, domain="www.chess.com"
+            )
 
     def get_club(self, slug: str) -> dict:
+        """Return general information about a club.
+
+        Args:
+            slug: The URL-friendly club identifier (e.g.
+                "clube-de-xadrez-de-jundiai").
+
+        Returns:
+            A dictionary with the raw club data from the public API.
+
+        Raises:
+            requests.HTTPError: If the API returns a non-2xx status code.
+        """
         r = self.session.get(f"{self.BASE_URL}/club/{slug}")
         r.raise_for_status()
         return r.json()
 
     def get_club_members(self, slug: str) -> list[dict]:
+        """Return all members of a club.
+
+        The public API groups members by activity tier (weekly, monthly,
+        all_time).  All groups are merged into a single flat list.
+
+        Args:
+            slug: The URL-friendly club identifier.
+
+        Returns:
+            A flat list of member dictionaries.
+
+        Raises:
+            requests.HTTPError: If the API returns a non-2xx status code.
+        """
         r = self.session.get(f"{self.BASE_URL}/club/{slug}/members")
         r.raise_for_status()
         data = r.json()
@@ -40,6 +89,24 @@ class ChessComClient(ChessProvider):
         return members
 
     def get_club_tournaments(self, slug: str) -> list[dict]:
+        """Return tournaments organised by a club.
+
+        Uses the internal Chess.com web API which requires authentication
+        cookies.  Paginates automatically until all pages are consumed.
+
+        Args:
+            slug: The URL-friendly club identifier.
+
+        Returns:
+            A list of tournament dictionaries.  Each dictionary contains a
+            ``tournament_type`` key set to either ``"swiss"`` or ``"arena"``.
+
+        Raises:
+            PermissionError: If the request is rejected due to missing or
+                expired credentials.
+            requests.HTTPError: If the API returns a non-2xx status code for
+                reasons other than authentication.
+        """
         club_data = self.get_club(slug)
         club_id = club_data["club_id"]
 
@@ -54,8 +121,8 @@ class ChessComClient(ChessProvider):
             if r.status_code == 401:
                 raise PermissionError(
                     "Authentication required. "
-                    "Set the CHESSCOM_ACCESS_TOKEN and CHESSCOM_PHPSESSID environment variables, "
-                    "or run 'chessclub auth setup'."
+                    "Set the CHESSCOM_ACCESS_TOKEN and CHESSCOM_PHPSESSID "
+                    "environment variables, or run 'chessclub auth setup'."
                 )
             r.raise_for_status()
             data = r.json()
@@ -77,6 +144,17 @@ class ChessComClient(ChessProvider):
         return tournaments
 
     def get_player(self, username: str) -> dict:
+        """Return profile information for a player.
+
+        Args:
+            username: The player's Chess.com username.
+
+        Returns:
+            A dictionary with the raw player profile data.
+
+        Raises:
+            requests.HTTPError: If the API returns a non-2xx status code.
+        """
         r = self.session.get(f"{self.BASE_URL}/player/{username}")
         r.raise_for_status()
         return r.json()

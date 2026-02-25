@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chessclub"
 version = "0.1.0"
-description = "Biblioteca modular para APIs de xadrez"
+description = "Modular library for chess platform APIs"
 readme = "README.md"
 requires-python = ">=3.10"
 

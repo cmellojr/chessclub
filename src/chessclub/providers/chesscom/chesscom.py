@@ -1,8 +1,8 @@
-# src/chessclub/providers/chesscom.py
+"""Legacy Chess.com provider backed by the public API only."""
 
 import time
+
 import requests
-from typing import List
 
 from chessclub.core.base import BaseProvider
 from chessclub.core.models import Club, Member, Tournament
@@ -12,23 +12,44 @@ BASE_URL = "https://api.chess.com/pub"
 
 
 class ChessComProvider(BaseProvider):
-    """Provider for the Chess.com public API."""
+    """Provider for the Chess.com public API.
+
+    Implements retry logic with exponential back-off for transient errors.
+    This provider uses only the public API and does not require authentication.
+    """
 
     def __init__(self, user_agent: str, timeout: int = 10, max_retries: int = 3):
+        """Initialise the provider.
+
+        Args:
+            user_agent: The User-Agent header value for all HTTP requests.
+            timeout: Per-request timeout in seconds.
+            max_retries: Maximum number of retry attempts for transient errors.
+        """
         super().__init__(user_agent)
         self.timeout = timeout
         self.max_retries = max_retries
 
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": self.user_agent
-        })
+        self.session.headers.update({"User-Agent": self.user_agent})
 
     # -------------------------
     # Internal request handler
     # -------------------------
 
     def _get(self, endpoint: str):
+        """Send a GET request with automatic retry on transient failures.
+
+        Args:
+            endpoint: The API path, e.g. ``"/club/my-club"``.
+
+        Returns:
+            The parsed JSON response body.
+
+        Raises:
+            requests.HTTPError: On non-retryable HTTP error responses.
+            RuntimeError: When the maximum number of retries is exceeded.
+        """
         url = f"{BASE_URL}{endpoint}"
 
         for attempt in range(self.max_retries):
@@ -42,17 +63,23 @@ class ChessComProvider(BaseProvider):
                 time.sleep(wait_time)
                 continue
 
-            raise Exception(
-                f"HTTP error {response.status_code}: {response.text}"
-            )
+            response.raise_for_status()
 
-        raise Exception("Maximum number of retries exceeded.")
+        raise RuntimeError("Maximum number of retries exceeded.")
 
     # -------------------------
     # Club
     # -------------------------
 
     def get_club(self, club_id: str) -> Club:
+        """Return general information about a club.
+
+        Args:
+            club_id: The URL-friendly club identifier.
+
+        Returns:
+            A :class:`Club` dataclass instance.
+        """
         data = self._get(f"/club/{club_id}")
 
         return Club(
@@ -63,20 +90,26 @@ class ChessComProvider(BaseProvider):
             url=data.get("url"),
         )
 
-    def get_club_members(self, club_id: str) -> List[Member]:
+    def get_club_members(self, club_id: str) -> list[Member]:
+        """Return all members of a club.
+
+        Args:
+            club_id: The URL-friendly club identifier.
+
+        Returns:
+            A list of :class:`Member` dataclass instances.
+        """
         data = self._get(f"/club/{club_id}/members")
 
         members = []
-
-        # Chess.com groups members by role
-        for role in ["admin", "moderator", "member"]:
+        for role in ("admin", "moderator", "member"):
             for m in data.get(role, []):
                 members.append(
                     Member(
                         username=m.get("username"),
-                        rating=None,  # rating is not available from this endpoint
+                        rating=None,
                         title=None,
-                        joined_at=None
+                        joined_at=None,
                     )
                 )
 
@@ -86,11 +119,21 @@ class ChessComProvider(BaseProvider):
     # Tournaments
     # -------------------------
 
-    def get_club_tournaments(self, club_id: str) -> List[Tournament]:
+    def get_club_tournaments(self, club_id: str) -> list[Tournament]:
+        """Return finished team matches associated with a club.
+
+        Note: the public API ``/matches`` endpoint returns club-vs-club team
+        matches, not individually organised tournaments.
+
+        Args:
+            club_id: The URL-friendly club identifier.
+
+        Returns:
+            A list of :class:`Tournament` dataclass instances.
+        """
         data = self._get(f"/club/{club_id}/matches")
 
         tournaments = []
-
         for match in data.get("finished", []):
             tournaments.append(
                 Tournament(
@@ -106,11 +149,24 @@ class ChessComProvider(BaseProvider):
         return tournaments
 
     def get_tournament_details(self, tournament_id: str) -> dict:
-        """Return details for a specific tournament."""
-        data = self._get(f"/match/{tournament_id}")
-        return data
+        """Return details for a specific tournament.
+
+        Args:
+            tournament_id: The tournament identifier.
+
+        Returns:
+            A dictionary with raw tournament data from the API.
+        """
+        return self._get(f"/match/{tournament_id}")
 
     def download_tournament_pgn(self, tournament_id: str) -> str:
-        """Return the full PGN for a tournament."""
+        """Return the full PGN for a tournament.
+
+        Args:
+            tournament_id: The tournament identifier.
+
+        Returns:
+            A PGN string, or an empty string if no PGN is available.
+        """
         data = self._get(f"/match/{tournament_id}")
         return data.get("pgn", "")
