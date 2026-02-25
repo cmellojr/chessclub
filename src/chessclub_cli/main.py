@@ -1,6 +1,10 @@
-"""CLI entry point for the chessclub tool."""
+"""CLI entry point for the chessclub tool.
 
-import os
+This module is the composition root of the application.  It is the only
+place that imports concrete implementations (ChessComClient, ChessComCookieAuth).
+All other layers depend solely on abstractions.
+"""
+
 import webbrowser
 from datetime import datetime
 
@@ -10,6 +14,8 @@ from rich.console import Console
 from rich.table import Table
 
 from chessclub.auth import credentials as creds_store
+from chessclub.core.exceptions import AuthenticationRequiredError
+from chessclub.providers.chesscom.auth import ChessComCookieAuth
 from chessclub.providers.chesscom.client import ChessComClient
 from chessclub.services.club_service import ClubService
 
@@ -31,33 +37,17 @@ _VALIDATION_CLUB = "chess-com-developer-community"
 # ---------------------------------------------------------------------------
 
 
-def _load_credentials() -> tuple[str | None, str | None]:
-    """Return credentials from env vars, falling back to the config file.
-
-    Returns:
-        A tuple of (access_token, phpsessid).  Either value may be ``None``
-        if not configured.
-    """
-    access_token = os.getenv("CHESSCOM_ACCESS_TOKEN")
-    phpsessid = os.getenv("CHESSCOM_PHPSESSID")
-    if access_token and phpsessid:
-        return access_token, phpsessid
-    stored = creds_store.load()
-    return stored.get("access_token"), stored.get("phpsessid")
-
-
 def _get_service() -> ClubService:
-    """Build and return a ClubService using the configured credentials.
+    """Build and return a ClubService backed by the Chess.com provider.
+
+    Credentials are resolved automatically by :class:`ChessComCookieAuth`
+    (env vars → config file).
 
     Returns:
-        A :class:`ClubService` backed by a :class:`ChessComClient`.
+        A :class:`~chessclub.services.club_service.ClubService` instance.
     """
-    access_token, phpsessid = _load_credentials()
-    provider = ChessComClient(
-        user_agent=_USER_AGENT,
-        access_token=access_token,
-        phpsessid=phpsessid,
-    )
+    auth = ChessComCookieAuth()
+    provider = ChessComClient(user_agent=_USER_AGENT, auth=auth)
     return ClubService(provider)
 
 
@@ -116,11 +106,10 @@ def setup():
 
     console.print("\n[dim]Validating credentials...[/dim]")
     try:
-        client = ChessComClient(
-            user_agent=_USER_AGENT,
-            access_token=access_token,
-            phpsessid=phpsessid,
+        auth = ChessComCookieAuth(
+            access_token=access_token, phpsessid=phpsessid
         )
+        client = ChessComClient(user_agent=_USER_AGENT, auth=auth)
         client.get_club(_VALIDATION_CLUB)
     except requests.RequestException as e:
         console.print(f"[red]Failed to validate credentials:[/red] {e}")
@@ -139,30 +128,23 @@ def setup():
 @auth_app.command()
 def status():
     """Show the status of configured credentials."""
-    access_token, phpsessid = _load_credentials()
+    auth = ChessComCookieAuth()
 
-    if not access_token or not phpsessid:
+    if not auth.is_authenticated():
         console.print("[yellow]No credentials configured.[/yellow]")
         console.print("Run [bold]chessclub auth setup[/bold] to configure.")
         raise typer.Exit(1)
 
-    source = (
-        "environment variables"
-        if os.getenv("CHESSCOM_ACCESS_TOKEN")
-        else creds_store.credentials_path()
+    console.print(
+        f"[green]✓ Credentials found[/green] ({auth.credential_source()})"
     )
-    console.print(f"[green]✓ Credentials found[/green] ({source})")
 
     console.print("[dim]Validating with Chess.com...[/dim]")
     try:
-        client = ChessComClient(
-            user_agent=_USER_AGENT,
-            access_token=access_token,
-            phpsessid=phpsessid,
-        )
+        client = ChessComClient(user_agent=_USER_AGENT, auth=auth)
         client.get_club(_VALIDATION_CLUB)
         console.print("[green]✓ Credentials are valid.[/green]")
-    except PermissionError:
+    except AuthenticationRequiredError:
         console.print("[red]✗ Credentials expired or invalid.[/red]")
         console.print("Run [bold]chessclub auth setup[/bold] to renew.")
         raise typer.Exit(1)
@@ -210,7 +192,7 @@ def tournaments(slug: str):
     try:
         service = _get_service()
         data = service.get_club_tournaments(slug)
-    except PermissionError as e:
+    except AuthenticationRequiredError as e:
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 

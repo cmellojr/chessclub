@@ -2,6 +2,8 @@
 
 import requests
 
+from chessclub.auth.interfaces import AuthProvider
+from chessclub.core.exceptions import AuthenticationRequiredError
 from chessclub.core.interfaces import ChessProvider
 from chessclub.core.models import Club, Member, Tournament
 
@@ -9,10 +11,15 @@ from chessclub.core.models import Club, Member, Tournament
 class ChessComClient(ChessProvider):
     """Provider for Chess.com that combines the public API and internal endpoints.
 
-    The public API (api.chess.com/pub) requires no authentication and is used
-    for club metadata and member lists.  The internal web API
-    (www.chess.com/callback) requires session cookies and is used for
+    The public API (``api.chess.com/pub``) requires no authentication and is
+    used for club metadata and member lists.  The internal web API
+    (``www.chess.com/callback``) requires session cookies and is used for
     club-organised tournament data.
+
+    Authentication is entirely optional and delegated to an
+    :class:`~chessclub.auth.interfaces.AuthProvider` implementation injected
+    at construction time.  The client itself has no knowledge of how
+    credentials are obtained, stored, or refreshed.
     """
 
     BASE_URL = "https://api.chess.com/pub"
@@ -21,17 +28,17 @@ class ChessComClient(ChessProvider):
     def __init__(
         self,
         user_agent: str,
-        access_token: str | None = None,
-        phpsessid: str | None = None,
+        auth: AuthProvider | None = None,
     ):
         """Initialise the client.
 
         Args:
             user_agent: The User-Agent header value for all HTTP requests.
-            access_token: Chess.com ACCESS_TOKEN cookie value.  Required only
-                for endpoints that use the internal web API.
-            phpsessid: Chess.com PHPSESSID cookie value.  Required together
-                with access_token for authenticated endpoints.
+            auth: An optional :class:`~chessclub.auth.interfaces.AuthProvider`
+                that supplies session credentials.  Required only for
+                endpoints that use the internal web API (e.g. tournaments).
+                When ``None``, only unauthenticated public-API endpoints are
+                usable.
         """
         self.session = requests.Session()
         self.session.headers.update({
@@ -39,14 +46,12 @@ class ChessComClient(ChessProvider):
             "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json",
         })
-        if access_token:
-            self.session.cookies.set(
-                "ACCESS_TOKEN", access_token, domain="www.chess.com"
-            )
-        if phpsessid:
-            self.session.cookies.set(
-                "PHPSESSID", phpsessid, domain="www.chess.com"
-            )
+
+        if auth and auth.is_authenticated():
+            credentials = auth.get_credentials()
+            for name, value in credentials.cookies.items():
+                self.session.cookies.set(name, value, domain="www.chess.com")
+            self.session.headers.update(credentials.headers)
 
     def get_club(self, slug: str) -> Club:
         """Return general information about a club.
@@ -56,7 +61,7 @@ class ChessComClient(ChessProvider):
                 ``"clube-de-xadrez-de-jundiai"``).
 
         Returns:
-            A :class:`Club` domain model instance.
+            A :class:`~chessclub.core.models.Club` domain model instance.
 
         Raises:
             requests.HTTPError: If the API returns a non-2xx status code.
@@ -76,14 +81,15 @@ class ChessComClient(ChessProvider):
     def get_club_members(self, slug: str) -> list[Member]:
         """Return all members of a club.
 
-        The public API groups members by activity tier (weekly, monthly,
-        all_time).  All groups are merged into a single flat list.
+        The public API groups members by activity tier (``weekly``,
+        ``monthly``, ``all_time``).  All groups are merged into a single
+        flat list.
 
         Args:
             slug: The URL-friendly club identifier.
 
         Returns:
-            A list of :class:`Member` domain model instances.
+            A list of :class:`~chessclub.core.models.Member` instances.
 
         Raises:
             requests.HTTPError: If the API returns a non-2xx status code.
@@ -107,18 +113,18 @@ class ChessComClient(ChessProvider):
     def get_club_tournaments(self, slug: str) -> list[Tournament]:
         """Return tournaments organised by a club.
 
-        Uses the internal Chess.com web API which requires authentication
-        cookies.  Paginates automatically until all pages are consumed.
+        Uses the internal Chess.com web API which requires authentication.
+        Paginates automatically until all pages are consumed.
 
         Args:
             slug: The URL-friendly club identifier.
 
         Returns:
-            A list of :class:`Tournament` domain model instances.
+            A list of :class:`~chessclub.core.models.Tournament` instances.
 
         Raises:
-            PermissionError: If the request is rejected due to missing or
-                expired credentials.
+            AuthenticationRequiredError: If the server rejects the request
+                due to missing or expired credentials.
             requests.HTTPError: If the API returns a non-2xx status code for
                 reasons other than authentication.
         """
@@ -134,10 +140,9 @@ class ChessComClient(ChessProvider):
                 params={"page": page},
             )
             if r.status_code == 401:
-                raise PermissionError(
-                    "Authentication required. "
-                    "Set the CHESSCOM_ACCESS_TOKEN and CHESSCOM_PHPSESSID "
-                    "environment variables, or run 'chessclub auth setup'."
+                raise AuthenticationRequiredError(
+                    "This endpoint requires authentication. "
+                    "Run 'chessclub auth setup' to configure credentials."
                 )
             r.raise_for_status()
             data = r.json()
@@ -178,14 +183,14 @@ class ChessComClient(ChessProvider):
 
     @staticmethod
     def _parse_tournament(raw: dict, tournament_type: str) -> Tournament:
-        """Map a raw API dictionary to a :class:`Tournament` domain model.
+        """Map a raw API dictionary to a Tournament domain model.
 
         Args:
             raw: The raw tournament dictionary from the Chess.com API.
             tournament_type: Either ``"swiss"`` or ``"arena"``.
 
         Returns:
-            A :class:`Tournament` domain model instance.
+            A :class:`~chessclub.core.models.Tournament` instance.
         """
         winner = raw.get("winner") or {}
         return Tournament(
