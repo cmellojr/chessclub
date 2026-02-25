@@ -106,3 +106,17 @@ class ChessComProvider(BaseProvider):
             )
 
         return tournaments
+
+    def get_tournament_details(self, tournament_id: str) -> dict:
+        """
+        Retorna detalhes de um torneio específico.
+        """
+        data = self._get(f"/match/{tournament_id}")
+        return data
+
+    def download_tournament_pgn(self, tournament_id: str) -> str:
+        """
+        Retorna o PGN completo de um torneio.
+        """
+        data = self._get(f"/match/{tournament_id}")
+        return data.get("pgn", "")

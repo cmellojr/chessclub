@@ -5,19 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chessclub"
 version = "0.1.0"
-description = "Biblioteca modular para APIs de xadrez (Chess.com e Lichess)"
+description = "Biblioteca modular para APIs de xadrez"
 readme = "README.md"
 requires-python = ">=3.10"
+
 authors = [
-    { name="Carlos Mello Jr, email="cmellojr@gmail.com" }
-]
-dependencies = [
-    "requests>=2.31"
+    { name = "Carlos Mello Jr", email = "cmellojr@gmail.com" }
 ]
 
-[project.optional-dependencies]
-dev = ["pytest", "black", "ruff"]
-lichess = ["httpx"]
+dependencies = [
+    "requests>=2.31",
+    "typer[all]>=0.12"
+]
 
 [project.scripts]
 chessclub = "chessclub.cli:main"

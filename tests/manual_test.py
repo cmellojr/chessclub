@@ -1,7 +1,7 @@
 from chessclub.providers.chesscom import ChessComProvider
 
 provider = ChessComProvider(
-    user_agent="Chessclub/0.1 (contato: seu-email@exemplo.com)"
+    user_agent="Chessclub/0.1 (contato: cmellojr@gmail.com)"
 )
 
 club = provider.get_club("clube-de-xadrez-de-jundiai")
