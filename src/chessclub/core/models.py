@@ -13,6 +13,11 @@ class Club:
     """Represents a chess club."""
 
     id: str
+    """URL-friendly identifier (slug)."""
+
+    provider_id: str | None
+    """Provider-specific numeric ID (e.g. Chess.com ``club_id`` field)."""
+
     name: str
     description: str | None
     country: str | None
@@ -45,10 +50,21 @@ class Tournament:
 
     id: str
     name: str
+    tournament_type: str
+    """Format of the event: ``"swiss"`` or ``"arena"``."""
+
     status: str
-    start_date: str | None
-    end_date: str | None
-    winner: str | None
+    """Lifecycle state: ``"finished"``, ``"in_progress"``, etc."""
+
+    start_date: int | None
+    """Unix timestamp of the event start, or ``None`` if unknown."""
+
+    end_date: int | None
+    """Unix timestamp of the event end, or ``None`` if unknown."""
+
+    player_count: int
+    winner_username: str | None
+    winner_score: float | None
 
 
 # ----------------------

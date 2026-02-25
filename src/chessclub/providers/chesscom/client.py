@@ -3,6 +3,7 @@
 import requests
 
 from chessclub.core.interfaces import ChessProvider
+from chessclub.core.models import Club, Member, Tournament
 
 
 class ChessComClient(ChessProvider):
@@ -47,24 +48,32 @@ class ChessComClient(ChessProvider):
                 "PHPSESSID", phpsessid, domain="www.chess.com"
             )
 
-    def get_club(self, slug: str) -> dict:
+    def get_club(self, slug: str) -> Club:
         """Return general information about a club.
 
         Args:
             slug: The URL-friendly club identifier (e.g.
-                "clube-de-xadrez-de-jundiai").
+                ``"clube-de-xadrez-de-jundiai"``).
 
         Returns:
-            A dictionary with the raw club data from the public API.
+            A :class:`Club` domain model instance.
 
         Raises:
             requests.HTTPError: If the API returns a non-2xx status code.
         """
         r = self.session.get(f"{self.BASE_URL}/club/{slug}")
         r.raise_for_status()
-        return r.json()
+        data = r.json()
+        return Club(
+            id=slug,
+            provider_id=str(data["club_id"]) if data.get("club_id") else None,
+            name=data.get("name", ""),
+            description=data.get("description"),
+            country=data.get("country"),
+            url=data.get("url"),
+        )
 
-    def get_club_members(self, slug: str) -> list[dict]:
+    def get_club_members(self, slug: str) -> list[Member]:
         """Return all members of a club.
 
         The public API groups members by activity tier (weekly, monthly,
@@ -74,7 +83,7 @@ class ChessComClient(ChessProvider):
             slug: The URL-friendly club identifier.
 
         Returns:
-            A flat list of member dictionaries.
+            A list of :class:`Member` domain model instances.
 
         Raises:
             requests.HTTPError: If the API returns a non-2xx status code.
@@ -82,13 +91,20 @@ class ChessComClient(ChessProvider):
         r = self.session.get(f"{self.BASE_URL}/club/{slug}/members")
         r.raise_for_status()
         data = r.json()
-        members = []
+        members: list[Member] = []
         for group in ("weekly", "monthly", "all_time"):
             for m in data.get(group, []):
-                members.append(m)
+                members.append(
+                    Member(
+                        username=m.get("username", ""),
+                        rating=None,
+                        title=None,
+                        joined_at=None,
+                    )
+                )
         return members
 
-    def get_club_tournaments(self, slug: str) -> list[dict]:
+    def get_club_tournaments(self, slug: str) -> list[Tournament]:
         """Return tournaments organised by a club.
 
         Uses the internal Chess.com web API which requires authentication
@@ -98,8 +114,7 @@ class ChessComClient(ChessProvider):
             slug: The URL-friendly club identifier.
 
         Returns:
-            A list of tournament dictionaries.  Each dictionary contains a
-            ``tournament_type`` key set to either ``"swiss"`` or ``"arena"``.
+            A list of :class:`Tournament` domain model instances.
 
         Raises:
             PermissionError: If the request is rejected due to missing or
@@ -107,10 +122,10 @@ class ChessComClient(ChessProvider):
             requests.HTTPError: If the API returns a non-2xx status code for
                 reasons other than authentication.
         """
-        club_data = self.get_club(slug)
-        club_id = club_data["club_id"]
+        club = self.get_club(slug)
+        club_id = club.provider_id
 
-        tournaments: list[dict] = []
+        tournaments: list[Tournament] = []
         page = 1
 
         while True:
@@ -127,13 +142,11 @@ class ChessComClient(ChessProvider):
             r.raise_for_status()
             data = r.json()
 
-            page_items: list[dict] = []
+            page_items: list[Tournament] = []
             for t in data.get("live_tournament", []):
-                t["tournament_type"] = "swiss"
-                page_items.append(t)
+                page_items.append(self._parse_tournament(t, "swiss"))
             for t in data.get("arena", []):
-                t["tournament_type"] = "arena"
-                page_items.append(t)
+                page_items.append(self._parse_tournament(t, "arena"))
 
             if not page_items:
                 break
@@ -158,3 +171,31 @@ class ChessComClient(ChessProvider):
         r = self.session.get(f"{self.BASE_URL}/player/{username}")
         r.raise_for_status()
         return r.json()
+
+    # -------------------------
+    # Internal helpers
+    # -------------------------
+
+    @staticmethod
+    def _parse_tournament(raw: dict, tournament_type: str) -> Tournament:
+        """Map a raw API dictionary to a :class:`Tournament` domain model.
+
+        Args:
+            raw: The raw tournament dictionary from the Chess.com API.
+            tournament_type: Either ``"swiss"`` or ``"arena"``.
+
+        Returns:
+            A :class:`Tournament` domain model instance.
+        """
+        winner = raw.get("winner") or {}
+        return Tournament(
+            id=str(raw.get("id", "")),
+            name=raw.get("name", ""),
+            tournament_type=tournament_type,
+            status="finished",
+            start_date=raw.get("start_time"),
+            end_date=raw.get("end_time"),
+            player_count=raw.get("registered_user_count", 0),
+            winner_username=winner.get("username"),
+            winner_score=winner.get("score"),
+        )

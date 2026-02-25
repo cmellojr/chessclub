@@ -1,6 +1,7 @@
 """Service layer that wraps a ChessProvider for club-related operations."""
 
 from chessclub.core.interfaces import ChessProvider
+from chessclub.core.models import Club, Member, Tournament
 
 
 class ClubService:
@@ -14,9 +15,20 @@ class ClubService:
         """Initialise the service.
 
         Args:
-            provider: A concrete implementation of ChessProvider.
+            provider: A concrete implementation of :class:`ChessProvider`.
         """
         self.provider = provider
+
+    def get_club(self, slug: str) -> Club:
+        """Return domain information about a club.
+
+        Args:
+            slug: The URL-friendly club identifier.
+
+        Returns:
+            A :class:`Club` domain model instance.
+        """
+        return self.provider.get_club(slug)
 
     def get_club_name(self, slug: str) -> str:
         """Return the display name of a club.
@@ -27,27 +39,26 @@ class ClubService:
         Returns:
             The club's display name.
         """
-        data = self.provider.get_club(slug)
-        return data["name"]
+        return self.provider.get_club(slug).name
 
-    def get_club_members(self, slug: str) -> list[dict]:
+    def get_club_members(self, slug: str) -> list[Member]:
         """Return all members of a club.
 
         Args:
             slug: The URL-friendly club identifier.
 
         Returns:
-            A list of member dictionaries.
+            A list of :class:`Member` domain model instances.
         """
         return self.provider.get_club_members(slug)
 
-    def get_club_tournaments(self, slug: str) -> list[dict]:
+    def get_club_tournaments(self, slug: str) -> list[Tournament]:
         """Return tournaments organised by a club.
 
         Args:
             slug: The URL-friendly club identifier.
 
         Returns:
-            A list of tournament dictionaries.
+            A list of :class:`Tournament` domain model instances.
         """
         return self.provider.get_club_tournaments(slug)

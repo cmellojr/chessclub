@@ -1,3 +1,5 @@
-from .chesscom import ChessComProvider
+"""Chess.com provider package."""
 
-__all__ = ["ChessComProvider"]
+from chessclub.providers.chesscom.client import ChessComClient
+
+__all__ = ["ChessComClient"]

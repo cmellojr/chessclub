@@ -61,19 +61,18 @@ def _get_service() -> ClubService:
     return ClubService(provider)
 
 
-def _fmt_date(timestamp) -> str:
+def _fmt_date(timestamp: int | None) -> str:
     """Format a Unix timestamp as a ``YYYY-MM-DD`` string.
 
     Args:
-        timestamp: A Unix timestamp (int, float, or string).  Returns an
-            em-dash if falsy.
+        timestamp: A Unix timestamp, or ``None``.
 
     Returns:
-        A formatted date string or ``"—"`` when the timestamp is absent.
+        A formatted date string, or ``"—"`` when the timestamp is absent.
     """
-    if not timestamp:
+    if timestamp is None:
         return "—"
-    return datetime.fromtimestamp(int(timestamp)).strftime("%Y-%m-%d")
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +95,9 @@ def setup():
     webbrowser.open("https://www.chess.com/login")
 
     console.print("\n[bold]How to retrieve cookies after login:[/bold]")
-    console.print("  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools")
+    console.print(
+        "  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools"
+    )
     console.print(
         "  2. Go to the [cyan]Application[/cyan] tab (Chrome) "
         "or [cyan]Storage[/cyan] (Firefox)"
@@ -198,7 +199,7 @@ def members(slug: str):
     table = Table(title=f"Members — {slug}")
     table.add_column("Username", style="cyan")
     for m in data:
-        table.add_row(m.get("username", ""))
+        table.add_row(m.username)
 
     console.print(table)
 
@@ -221,13 +222,12 @@ def tournaments(slug: str):
     table.add_column("Winner pts", justify="right")
 
     for t in data:
-        winner = t.get("winner") or {}
-        score = str(winner.get("score", "—")) if winner else "—"
+        score = str(t.winner_score) if t.winner_score is not None else "—"
         table.add_row(
-            t.get("name", ""),
-            t.get("tournament_type", ""),
-            _fmt_date(t.get("start_time")),
-            str(t.get("registered_user_count", 0)),
+            t.name,
+            t.tournament_type,
+            _fmt_date(t.start_date),
+            str(t.player_count),
             score,
         )
 
