@@ -3,6 +3,7 @@
 ![Python](https://img.shields.io/badge/python-%3E%3D3.10-3776AB?logo=python&logoColor=white)
 ![Requests](https://img.shields.io/badge/requests-%3E%3D2.31-brightgreen)
 ![Typer](https://img.shields.io/badge/typer-%3E%3D0.12-009688)
+![License: MIT](https://img.shields.io/badge/license-MIT-yellow)
 ![Style: Google](https://img.shields.io/badge/style-Google%20Python%20Style%20Guide-4285F4)
 
 **Multi-platform chess API library and CLI — unified abstraction for Chess.com, Lichess, and beyond.**
@@ -235,4 +236,4 @@ chessclub club stats chess-com-developer-community
 
 ## License
 
-License to be defined. See repository settings.
+Released under the [MIT License](LICENSE). Copyright © 2026 Carlos Mello Jr.
