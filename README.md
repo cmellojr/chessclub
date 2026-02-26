@@ -16,7 +16,7 @@
 
 - **Query clubs, members, and tournaments** directly from your terminal
 - **Multi-platform ready** — Chess.com today; Lichess, Lishogi, and Xiangqi.com on the roadmap
-- **Decoupled authentication** — cookie-based auth now, OAuth 2.0 support once Chess.com grants access
+- **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server (awaiting Chess.com client_id)
 - **Typed domain models** — `Club`, `Member`, `Tournament` as Python dataclasses, not raw dicts
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
 - **Google Python Style Guide** throughout — type annotations, Google-style docstrings, 80-char lines
@@ -84,26 +84,49 @@ Total: 2 tournaments
 
 | Command | Description |
 |---|---|
-| `chessclub auth setup` | Interactive guide: open browser, extract cookies, save credentials |
-| `chessclub auth status` | Show credential source and validate against Chess.com |
-| `chessclub auth clear` | Remove the locally stored credentials file |
+| `chessclub auth login` | OAuth 2.0 PKCE browser flow — authenticate once, tokens auto-refresh |
+| `chessclub auth setup` | Cookie fallback: extract session cookies from DevTools and save |
+| `chessclub auth status` | Show OAuth token and/or cookie session status; validate against Chess.com |
+| `chessclub auth clear` | Remove all locally stored credentials (OAuth token and cookies) |
 
 ---
 
 ## Authentication
 
-Some Chess.com endpoints (notably the tournament list) require valid session cookies.
+Some Chess.com endpoints (notably the tournament list) require authentication.
 `chessclub` handles credentials as a **separate layer** from the provider — the provider
-itself never knows how credentials are obtained or stored.
+never knows how credentials are obtained or stored.
 
-### Setting up credentials
+### OAuth 2.0 PKCE (primary method)
+
+```bash
+chessclub auth login
+```
+
+Implements the Authorization Code + PKCE flow with a Loopback Local Server redirect URI
+(RFC 8252), matching the pattern used by `gcloud`, `aws-cli`, and `gh`. The command:
+
+1. Opens your browser to the Chess.com authorization page
+2. Starts a temporary HTTP server on a random loopback port (`127.0.0.1:PORT`)
+3. Captures the authorization code from the redirect automatically
+4. Exchanges the code for an access token + refresh token
+5. Saves tokens to `~/.config/chessclub/oauth_token.json` (`0o600` permissions)
+
+Tokens refresh automatically — no manual re-authentication needed.
+
+> **Note:** `auth login` requires a `CHESSCOM_CLIENT_ID` environment variable.
+> The OAuth 2.0 implementation is complete; a developer application approval from
+> Chess.com is pending. Once available, the `client_id` will be bundled in the
+> package and no configuration will be needed by end users.
+
+### Cookie fallback (`auth setup`)
 
 ```bash
 chessclub auth setup
 ```
 
-This command opens [chess.com/login](https://www.chess.com/login) in your browser and
-walks you through extracting the two required cookies from DevTools:
+Until OAuth is fully activated, this command guides you through extracting session
+cookies from your browser's DevTools:
 
 | Cookie | Where to find it | Expiry |
 |---|---|---|
@@ -112,18 +135,15 @@ walks you through extracting the two required cookies from DevTools:
 
 ### Credential resolution order
 
-When making an authenticated request, credentials are resolved in this order:
+When making an authenticated request, the active method is selected in this order:
 
 ```
-1. CHESSCOM_ACCESS_TOKEN + CHESSCOM_PHPSESSID  (environment variables)
-2. ~/.config/chessclub/credentials.json        (saved by `auth setup`)
+1. OAuth 2.0 token    (~/.config/chessclub/oauth_token.json)  ← preferred
+2. Environment vars   CHESSCOM_ACCESS_TOKEN + CHESSCOM_PHPSESSID
+3. Credentials file   ~/.config/chessclub/credentials.json (saved by auth setup)
 ```
 
-The credentials file is created with `0o600` permissions (owner read/write only).
-
-> **Note:** `ACCESS_TOKEN` expires approximately every 24 hours. Re-run
-> `chessclub auth setup` when it expires. OAuth 2.0 support is planned once
-> Chess.com grants application access.
+All credential files are created with `0o600` permissions (owner read/write only).
 
 ---
 
@@ -142,7 +162,7 @@ the layers below it:
 │  providers/chesscom                             │
 │  · ChessComClient     implements ChessProvider  │
 │  · ChessComCookieAuth implements AuthProvider   │
-│  · ChessComOAuth      (stub — OAuth 2.0 future) │
+│  · ChessComOAuth      OAuth 2.0 PKCE + Loopback Server      │
 └───────────────────┬─────────────────────────────┘
                     │ imports abstractions from
        ┌────────────▼──────────┐  ┌──────────────┐
@@ -184,10 +204,10 @@ src/
 │   │   └── exceptions.py     # ChessclubError, AuthenticationRequiredError
 │   ├── auth/
 │   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials dataclass
-│   │   └── credentials.py    # ~/.config/chessclub/credentials.json storage
+│   │   └── credentials.py    # credentials.json (cookies) + oauth_token.json (OAuth)
 │   ├── providers/
 │   │   └── chesscom/
-│   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth (stub)
+│   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
 │   │       └── client.py     # ChessComClient
 │   └── services/
 │       └── club_service.py   # ClubService
@@ -207,7 +227,7 @@ src/
 
 ### Authentication
 - [x] Cookie-based auth (Chess.com)
-- [ ] OAuth 2.0 (Chess.com — pending application approval)
+- [~] OAuth 2.0 PKCE + Loopback Server — implemented, awaiting Chess.com client_id
 - [ ] API token auth (Lichess)
 
 ### Features
