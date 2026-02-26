@@ -139,6 +139,38 @@ Use domain exceptions from `core/exceptions.py` — never Python built-ins as a 
 | `ProviderError` | Provider encounters an unrecoverable platform-specific error |
 | `ChessclubError` | Base class — catch this to handle any library error generically |
 
+## Branch Model
+
+```
+main      ← stable; every commit here is a release candidate
+develop   ← integration; all active development happens here
+feature/* ← short-lived; one per feature or fix, branched off develop
+hotfix/*  ← urgent fixes branched off main; merged back to main AND develop
+```
+
+### Rules
+
+- **`main`**: never commit directly. Only receives merges from `develop` (releases)
+  or `hotfix/*` (urgent fixes). Every merge to `main` must be tagged (`v0.1.0`, …).
+- **`develop`**: the day-to-day working branch. Broken or in-progress commits are
+  acceptable here. All feature branches are created from and merged back into this branch.
+- **`feature/<description>`**: branch off `develop`, delete after merge.
+  Examples: `feature/lichess-provider`, `feature/json-output`, `fix/auth-expiry`.
+- **`hotfix/<description>`**: branch off `main` for production-critical fixes only.
+  Must be merged back into both `main` and `develop`.
+
+### Workflow
+
+```
+feature/lichess-provider ──┐
+feature/json-output      ──┤  merge when ready
+fix/auth-expiry          ──┘
+                            ↓
+                         develop  ← validate here
+                            ↓  when stable
+                          main    ← tag: v0.2.0
+```
+
 ## Code Style
 
 Follows the **Google Python Style Guide** throughout.

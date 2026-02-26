@@ -221,16 +221,32 @@ src/
 
 Contributions are welcome — bug reports, feature requests, and pull requests alike.
 
-Before submitting a PR, please read [CLAUDE.md](CLAUDE.md) for the project's
-architecture conventions, dependency rules, and code style guidelines.
+### Branch model
+
+| Branch | Purpose |
+|---|---|
+| `main` | Stable; tagged releases only |
+| `develop` | Active development; target for all PRs |
+| `feature/<name>` | New features and fixes, branched off `develop` |
+| `hotfix/<name>` | Urgent production fixes, branched off `main` |
+
+**Please target all pull requests at `develop`, not `main`.**
+
+### Getting started
 
 ```bash
-# Install in development mode
+git clone https://github.com/cmellojr/chessclub.git
+cd chessclub
+git checkout develop
+
 pip install -e .
 
 # Verify everything works
 chessclub club stats chess-com-developer-community
 ```
+
+Before submitting a PR, please read [CLAUDE.md](CLAUDE.md) for the project's
+architecture conventions, dependency rules, and code style guidelines.
 
 ---
 
