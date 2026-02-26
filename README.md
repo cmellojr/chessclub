@@ -26,7 +26,7 @@
 
 ```bash
 # Clone and install in editable mode
-git clone https://github.com/<your-username>/chessclub.git
+git clone https://github.com/cmellojr/chessclub.git
 cd chessclub
 pip install -e .
 
