@@ -15,9 +15,11 @@
 ## Features
 
 - **Query clubs, members, and tournaments** directly from your terminal
+- **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
+- **Tournament standings** — `--details` flag shows per-player results (position, score, rating)
 - **Multi-platform ready** — Chess.com today; Lichess, Lishogi, and Xiangqi.com on the roadmap
 - **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server (awaiting Chess.com client_id)
-- **Typed domain models** — `Club`, `Member`, `Tournament` as Python dataclasses, not raw dicts
+- **Typed domain models** — `Club`, `Member`, `Tournament`, `Game` as Python dataclasses, not raw dicts
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
 - **Google Python Style Guide** throughout — type annotations, Google-style docstrings, 80-char lines
 
@@ -35,11 +37,18 @@ pip install -e .
 chessclub --help
 
 # Query a club (no authentication required)
-chessclub club stats chess-com-developer-community
-chessclub club members chess-com-developer-community
+chessclub club stats clube-de-xadrez-de-jundiai
+chessclub club members clube-de-xadrez-de-jundiai
+
+# Output as JSON or CSV
+chessclub club members clube-de-xadrez-de-jundiai --output json
+chessclub club stats clube-de-xadrez-de-jundiai --output csv
 
 # List tournaments (requires credentials — see Authentication below)
-chessclub club tournaments chess-com-developer-community
+chessclub club tournaments clube-de-xadrez-de-jundiai
+
+# List tournaments with per-player standings
+chessclub club tournaments clube-de-xadrez-de-jundiai --details
 ```
 
 ---
@@ -48,26 +57,38 @@ chessclub club tournaments chess-com-developer-community
 
 ### `club` commands
 
+All `club` commands accept an `--output` / `-o` flag: `table` (default), `json`, or `csv`.
+
 | Command | Description | Auth |
 |---|---|---|
-| `chessclub club stats <slug>` | Display the club's display name | No |
-| `chessclub club members <slug>` | List all club members in a table | No |
+| `chessclub club stats <slug>` | Display club information | No |
+| `chessclub club members <slug>` | List all club members | No |
 | `chessclub club tournaments <slug>` | List tournaments organised by the club | **Yes** |
+| `chessclub club tournaments <slug> --details` | List tournaments with full per-player standings | **Yes** |
 
-**Example output — `club members`:**
+**Example — `club members` (default table):**
 
 ```
-                Members — chess-com-developer-community
+                Members — clube-de-xadrez-de-jundiai
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Username                                        ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ erik                                            │
-│ danya                                           │
+│ alice                                           │
+│ bob                                             │
 │ ...                                             │
 └─────────────────────────────────────────────────┘
 ```
 
-**Example output — `club tournaments`:**
+**Example — `club members --output json`:**
+
+```json
+[
+  {"username": "alice", "rating": null, "title": null, "joined_at": null},
+  {"username": "bob",   "rating": null, "title": null, "joined_at": null}
+]
+```
+
+**Example — `club tournaments` (default table):**
 
 ```
            Tournaments — clube-de-xadrez-de-jundiai
@@ -78,6 +99,22 @@ chessclub club tournaments chess-com-developer-community
 │ Blitz Arena       │ arena  │ 2025-02-03 │      18 │       32.0 │
 └───────────────────┴────────┴────────────┴─────────┴────────────┘
 Total: 2 tournaments
+```
+
+**Example — `club tournaments --details` (with standings):**
+
+```
+           Tournaments — clube-de-xadrez-de-jundiai
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Name              ┃ Type   ┃       Date ┃ Players ┃ Winner pts ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩
+│ Club Championship │ swiss  │ 2025-01-10 │      24 │        8.5 │
+└───────────────────┴────────┴────────────┴─────────┴────────────┘
+Total: 1 tournaments
+────────────────── Club Championship ──────────────────
+  # Player  Score Rating
+  1 alice     8.5   1520
+  2 bob       7.0   1410
 ```
 
 ### `auth` commands
@@ -175,7 +212,8 @@ the layers below it:
                         ┌────────────────▼──────────────┐
                         │  core/  (zero project imports) │
                         │  · ChessProvider (ABC)         │
-                        │  · Club, Member, Tournament    │
+                        │  · Club, Member, Tournament,   │
+                        │    TournamentResult, Game      │
                         │  · ChessclubError hierarchy    │
                         └────────────────────────────────┘
 ```
@@ -200,7 +238,7 @@ src/
 ├── chessclub/
 │   ├── core/
 │   │   ├── interfaces.py     # ChessProvider ABC
-│   │   ├── models.py         # Club, Member, Tournament, TournamentResult
+│   │   ├── models.py         # Club, Member, Tournament, TournamentResult, Game
 │   │   └── exceptions.py     # ChessclubError, AuthenticationRequiredError
 │   ├── auth/
 │   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials dataclass
@@ -213,6 +251,21 @@ src/
 │       └── club_service.py   # ClubService
 └── chessclub_cli/
     └── main.py               # Typer CLI (composition root)
+tests/
+├── test_models.py            # Unit tests for domain models
+└── test_cli.py               # CLI command tests (mocked provider)
+```
+
+---
+
+## Development
+
+```bash
+# Install with dev dependencies (includes pytest)
+pip install -e ".[dev]"
+
+# Run the test suite
+pytest tests/ -v
 ```
 
 ---
@@ -231,8 +284,9 @@ src/
 - [ ] API token auth (Lichess)
 
 ### Features
-- [ ] `--output json` / `--output csv` flag on all commands
-- [ ] `club tournaments <slug> --details` — player standings per tournament
+- [x] `--output json` / `--output csv` on all `club` commands
+- [x] `club tournaments <slug> --details` — per-player standings (position, score, rating)
+- [ ] `club leaderboard <slug> --year <year>` — annual points aggregation
 - [ ] `player stats <username>` — player profile and ratings
 
 ---
@@ -259,10 +313,11 @@ git clone https://github.com/cmellojr/chessclub.git
 cd chessclub
 git checkout develop
 
-pip install -e .
+pip install -e ".[dev]"
 
 # Verify everything works
-chessclub club stats chess-com-developer-community
+pytest tests/ -v
+chessclub club stats clube-de-xadrez-de-jundiai
 ```
 
 Before submitting a PR, please read [CLAUDE.md](CLAUDE.md) for the project's
