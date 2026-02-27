@@ -1,7 +1,7 @@
 """Service layer that wraps a ChessProvider for club-related operations."""
 
 from chessclub.core.interfaces import ChessProvider
-from chessclub.core.models import Club, Member, Tournament
+from chessclub.core.models import Club, Member, Tournament, TournamentResult
 
 
 class ClubService:
@@ -62,3 +62,16 @@ class ClubService:
             A list of :class:`Tournament` domain model instances.
         """
         return self.provider.get_club_tournaments(slug)
+
+    def get_tournament_results(
+        self, tournament_id: str
+    ) -> list[TournamentResult]:
+        """Return per-player standings for a finished tournament.
+
+        Args:
+            tournament_id: The provider-specific tournament identifier.
+
+        Returns:
+            A list of :class:`TournamentResult` instances.
+        """
+        return self.provider.get_tournament_results(tournament_id)

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from chessclub.core.models import Club, Member, Tournament
+from chessclub.core.models import Club, Member, Tournament, TournamentResult
 
 
 class ChessProvider(ABC):
@@ -44,6 +44,24 @@ class ChessProvider(ABC):
 
         Returns:
             A list of :class:`Tournament` domain model instances.
+        """
+
+    @abstractmethod
+    def get_tournament_results(
+        self, tournament_id: str
+    ) -> list[TournamentResult]:
+        """Return per-player standings for a finished tournament.
+
+        Args:
+            tournament_id: The provider-specific tournament identifier.
+
+        Returns:
+            A list of :class:`TournamentResult` instances, ordered by
+            position (ascending).
+
+        Raises:
+            AuthenticationRequiredError: If the endpoint requires
+                authentication and no valid credentials are configured.
         """
 
     @abstractmethod

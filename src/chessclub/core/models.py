@@ -68,7 +68,7 @@ class Tournament:
 
 
 # ----------------------
-# TournamentResult (future use)
+# TournamentResult
 # ----------------------
 
 
@@ -80,3 +80,33 @@ class TournamentResult:
     player: str
     position: int
     score: float | None
+    rating: int | None = None
+    """Player rating at the time of the tournament."""
+
+
+# ----------------------
+# Game
+# ----------------------
+
+
+@dataclass
+class Game:
+    """Represents a single chess game."""
+
+    white: str
+    """Username of the player with the white pieces."""
+
+    black: str
+    """Username of the player with the black pieces."""
+
+    result: str
+    """Game result: ``"1-0"``, ``"0-1"``, or ``"1/2-1/2"``."""
+
+    opening_eco: str | None
+    """ECO opening code (e.g. ``"B40"``), or ``None`` if unknown."""
+
+    pgn: str | None
+    """Full PGN string, or ``None`` if not available."""
+
+    played_at: int | None
+    """Unix timestamp of when the game was played, or ``None`` if unknown."""

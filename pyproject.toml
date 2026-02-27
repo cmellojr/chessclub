@@ -19,6 +19,9 @@ dependencies = [
     "typer[all]>=0.12"
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [project.scripts]
 chessclub = "chessclub_cli.main:app"
 

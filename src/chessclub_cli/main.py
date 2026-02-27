@@ -6,10 +6,15 @@ ChessComCookieAuth, ChessComOAuth).  All other layers depend solely on
 abstractions.
 """
 
+import csv
+import io
+import json
 import os
 import time
 import webbrowser
+from dataclasses import asdict
 from datetime import datetime
+from enum import Enum
 
 import requests
 import typer
@@ -34,6 +39,19 @@ console = Console()
 _USER_AGENT = "Chessclub/0.1 (contact: cmellojr@gmail.com)"
 _VALIDATION_CLUB = "chess-com-developer-community"
 _CLIENT_ID = os.getenv("CHESSCOM_CLIENT_ID", "")
+
+
+# ---------------------------------------------------------------------------
+# Output format
+# ---------------------------------------------------------------------------
+
+
+class OutputFormat(str, Enum):
+    """Supported output formats for club commands."""
+
+    table = "table"
+    json = "json"
+    csv = "csv"
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +90,25 @@ def _fmt_date(timestamp: int | None) -> str:
     if timestamp is None:
         return "—"
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+
+
+def _to_csv(rows: list[dict], fieldnames: list[str]) -> str:
+    """Serialise a list of dicts to a CSV string.
+
+    Args:
+        rows: List of dictionaries to serialise.
+        fieldnames: Ordered column names.  Extra keys in ``rows`` are ignored.
+
+    Returns:
+        A CSV-formatted string including a header row.
+    """
+    buf = io.StringIO()
+    writer = csv.DictWriter(
+        buf, fieldnames=fieldnames, extrasaction="ignore"
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -231,28 +268,74 @@ def clear():
 
 
 @club_app.command()
-def stats(slug: str):
-    """Display the club name."""
+def stats(
+    slug: str,
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+):
+    """Display club information."""
     service = _get_service()
-    print(service.get_club_name(slug))
+    club = service.get_club(slug)
+
+    if output == OutputFormat.json:
+        print(json.dumps(asdict(club), indent=2))
+    elif output == OutputFormat.csv:
+        print(
+            _to_csv(
+                [asdict(club)],
+                ["id", "name", "description", "country", "url"],
+            ),
+            end="",
+        )
+    else:
+        console.print(club.name)
 
 
 @club_app.command()
-def members(slug: str):
+def members(
+    slug: str,
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+):
     """List club members."""
     service = _get_service()
     data = service.get_club_members(slug)
 
-    table = Table(title=f"Members — {slug}")
-    table.add_column("Username", style="cyan")
-    for m in data:
-        table.add_row(m.username)
-
-    console.print(table)
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(m) for m in data], indent=2))
+    elif output == OutputFormat.csv:
+        print(
+            _to_csv(
+                [asdict(m) for m in data],
+                ["username", "rating", "title", "joined_at"],
+            ),
+            end="",
+        )
+    else:
+        table = Table(title=f"Members — {slug}")
+        table.add_column("Username", style="cyan")
+        for m in data:
+            table.add_row(m.username)
+        console.print(table)
 
 
 @club_app.command()
-def tournaments(slug: str):
+def tournaments(
+    slug: str,
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+    details: bool = typer.Option(
+        False,
+        "--details/--no-details",
+        help=(
+            "Fetch and display per-player standings for each tournament. "
+            "Requires authentication. Not supported with --output csv."
+        ),
+    ),
+):
     """List tournaments organised by the club."""
     try:
         service = _get_service()
@@ -261,22 +344,88 @@ def tournaments(slug: str):
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 
-    table = Table(title=f"Tournaments — {slug}", show_lines=False)
-    table.add_column("Name", style="cyan", no_wrap=False)
-    table.add_column("Type", style="dim")
-    table.add_column("Date", justify="right")
-    table.add_column("Players", justify="right")
-    table.add_column("Winner pts", justify="right")
+    if output == OutputFormat.json:
+        rows = [asdict(t) for t in data]
+        if details:
+            for row, t in zip(rows, data):
+                try:
+                    results = service.get_tournament_results(t.id)
+                    row["results"] = [asdict(r) for r in results]
+                except AuthenticationRequiredError as e:
+                    console.print(
+                        f"[yellow]Warning:[/yellow] {e}", highlight=False
+                    )
+                    row["results"] = []
+        print(json.dumps(rows, indent=2))
 
-    for t in data:
-        score = str(t.winner_score) if t.winner_score is not None else "—"
-        table.add_row(
-            t.name,
-            t.tournament_type,
-            _fmt_date(t.start_date),
-            str(t.player_count),
-            score,
-        )
+    elif output == OutputFormat.csv:
+        if details:
+            console.print(
+                "[yellow]Note:[/yellow] --details is not supported with "
+                "--output csv. Showing summary only."
+            )
+        _fields = [
+            "id",
+            "name",
+            "tournament_type",
+            "status",
+            "start_date",
+            "end_date",
+            "player_count",
+            "winner_username",
+            "winner_score",
+        ]
+        print(_to_csv([asdict(t) for t in data], _fields), end="")
 
-    console.print(table)
-    console.print(f"[dim]Total: {len(data)} tournaments[/]")
+    else:
+        # Default: table output
+        table = Table(title=f"Tournaments — {slug}", show_lines=False)
+        table.add_column("Name", style="cyan", no_wrap=False)
+        table.add_column("Type", style="dim")
+        table.add_column("Date", justify="right")
+        table.add_column("Players", justify="right")
+        table.add_column("Winner pts", justify="right")
+
+        for t in data:
+            score = str(t.winner_score) if t.winner_score is not None else "—"
+            table.add_row(
+                t.name,
+                t.tournament_type,
+                _fmt_date(t.start_date),
+                str(t.player_count),
+                score,
+            )
+
+        console.print(table)
+        console.print(f"[dim]Total: {len(data)} tournaments[/]")
+
+        if details:
+            for t in data:
+                console.rule(f"[bold]{t.name}[/bold]")
+                try:
+                    results = service.get_tournament_results(t.id)
+                except AuthenticationRequiredError as e:
+                    console.print(
+                        f"  [yellow]Could not fetch standings:[/yellow] {e}",
+                        highlight=False,
+                    )
+                    continue
+
+                if not results:
+                    console.print("  [dim]No standings available.[/dim]")
+                    continue
+
+                standings = Table(show_header=True, show_lines=False)
+                standings.add_column("#", justify="right", style="dim")
+                standings.add_column("Player", style="cyan")
+                standings.add_column("Score", justify="right")
+                standings.add_column("Rating", justify="right")
+
+                for r in results:
+                    standings.add_row(
+                        str(r.position),
+                        r.player,
+                        str(r.score) if r.score is not None else "—",
+                        str(r.rating) if r.rating is not None else "—",
+                    )
+                console.print(standings)

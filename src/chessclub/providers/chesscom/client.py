@@ -5,7 +5,7 @@ import requests
 from chessclub.auth.interfaces import AuthProvider
 from chessclub.core.exceptions import AuthenticationRequiredError
 from chessclub.core.interfaces import ChessProvider
-from chessclub.core.models import Club, Member, Tournament
+from chessclub.core.models import Club, Member, Tournament, TournamentResult
 
 
 class ChessComClient(ChessProvider):
@@ -161,6 +161,44 @@ class ChessComClient(ChessProvider):
 
         return tournaments
 
+    def get_tournament_results(
+        self, tournament_id: str
+    ) -> list[TournamentResult]:
+        """Return per-player standings for a finished club tournament.
+
+        Args:
+            tournament_id: The Chess.com internal tournament ID (as returned
+                by :meth:`get_club_tournaments`).
+
+        Returns:
+            A list of :class:`~chessclub.core.models.TournamentResult`
+            instances ordered by position (ascending).
+
+        Raises:
+            AuthenticationRequiredError: If the server rejects the request
+                due to missing or expired credentials.
+            requests.HTTPError: If the API returns a non-2xx status code for
+                reasons other than authentication.
+        """
+        r = self.session.get(
+            f"{self.WEB_BASE_URL}/callback/live/tournament"
+            f"/{tournament_id}/leaderboard"
+        )
+        if r.status_code == 401:
+            raise AuthenticationRequiredError(
+                "This endpoint requires authentication. "
+                "Run 'chessclub auth setup' to configure credentials."
+            )
+        r.raise_for_status()
+        data = r.json()
+
+        results: list[TournamentResult] = []
+        for raw in data.get("players", []):
+            results.append(
+                self._parse_tournament_result(raw, tournament_id)
+            )
+        return results
+
     def get_player(self, username: str) -> dict:
         """Return profile information for a player.
 
@@ -180,6 +218,27 @@ class ChessComClient(ChessProvider):
     # -------------------------
     # Internal helpers
     # -------------------------
+
+    @staticmethod
+    def _parse_tournament_result(
+        raw: dict, tournament_id: str
+    ) -> TournamentResult:
+        """Map a raw API dictionary to a TournamentResult domain model.
+
+        Args:
+            raw: The raw player entry dictionary from the leaderboard API.
+            tournament_id: The tournament's provider-specific identifier.
+
+        Returns:
+            A :class:`~chessclub.core.models.TournamentResult` instance.
+        """
+        return TournamentResult(
+            tournament_id=tournament_id,
+            player=raw.get("username", ""),
+            position=int(raw.get("rank", 0)),
+            score=raw.get("score"),
+            rating=raw.get("rating"),
+        )
 
     @staticmethod
     def _parse_tournament(raw: dict, tournament_type: str) -> Tournament:
