@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>chessclub Cookie Helper</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      width: 340px;
+      background: #1a1a2e;
+      color: #e0e0e0;
+    }
+
+    .deprecation-banner {
+      background: #4a3000;
+      border-bottom: 1px solid #7a5200;
+      color: #ffd280;
+      font-size: 11px;
+      padding: 6px 12px;
+      line-height: 1.4;
+    }
+
+    .deprecation-banner strong { color: #ffb300; }
+
+    .header {
+      background: #16213e;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #81c784;
+      letter-spacing: 0.3px;
+    }
+
+    .header p {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    #content { padding: 12px 14px; }
+
+    .field-block { margin-bottom: 12px; }
+
+    .field-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #80cbc4;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .field-value {
+      flex: 1;
+      background: #0f3460;
+      border: 1px solid #1a4a8a;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-family: "Consolas", "Monaco", monospace;
+      font-size: 12px;
+      color: #b0bec5;
+      word-break: break-all;
+      min-height: 28px;
+      line-height: 1.6;
+    }
+
+    button {
+      background: #0f3460;
+      border: 1px solid #1a4a8a;
+      border-radius: 4px;
+      color: #90caf9;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 4px 8px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    button:hover { background: #1a4a8a; }
+    button:disabled { opacity: 0.5; cursor: default; }
+
+    .btn-eye {
+      min-width: 38px;
+      color: #78909c;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #1a3a5c;
+      margin: 10px 0;
+    }
+
+    .copy-both-row {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .btn-copy-both {
+      background: #1b5e20;
+      border-color: #2e7d32;
+      color: #a5d6a7;
+      font-size: 12px;
+      padding: 5px 12px;
+    }
+
+    .btn-copy-both:hover { background: #2e7d32; }
+
+    .hint {
+      font-size: 10px;
+      color: #546e7a;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .hint code {
+      color: #80cbc4;
+      background: #0a2540;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    #status {
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #status.error { color: #ef9a9a; }
+  </style>
+</head>
+<body>
+
+  <div class="deprecation-banner">
+    <strong>⚠️ Temporary dev tool.</strong>
+    Will be removed when <strong>OAuth 2.0</strong> is activated
+    (<code style="background:#3a2000;padding:1px 4px;border-radius:3px;">chessclub auth login</code>).
+  </div>
+
+  <div class="header">
+    <h1>chessclub Cookie Helper</h1>
+    <p>Chess.com session cookies for <code>chessclub auth setup</code></p>
+  </div>
+
+  <div id="status" class="status">Loading cookies…</div>
+
+  <div id="content" style="display:none">
+    <div class="field-block">
+      <div class="field-label">ACCESS_TOKEN</div>
+      <div class="field-row">
+        <span class="field-value" id="token-value"></span>
+        <button class="btn-eye" id="eye-token">Show</button>
+        <button id="copy-token">Copy</button>
+      </div>
+    </div>
+
+    <div class="field-block">
+      <div class="field-label">PHPSESSID</div>
+      <div class="field-row">
+        <span class="field-value" id="sessid-value"></span>
+        <button class="btn-eye" id="eye-sessid">Show</button>
+        <button id="copy-sessid">Copy</button>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="copy-both-row">
+      <button class="btn-copy-both" id="copy-both">Copy both values</button>
+    </div>
+
+    <p class="hint">
+      Run <code>chessclub auth setup</code> in the terminal, then paste
+      each value when prompted. ACCESS_TOKEN expires in ~24 h.
+    </p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
