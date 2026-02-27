@@ -69,6 +69,7 @@ async function init() {
   }
 
   statusEl.style.display = "none";
+  document.getElementById("content").style.display = "block";
 
   // Populate ACCESS_TOKEN field
   const tokenEl = document.getElementById("token-value");
