@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "chessclub Cookie Helper",
+  "version": "0.1.0",
+  "description": "⚠️ Temporary dev tool — extracts Chess.com session cookies for use with 'chessclub auth setup'. Will be removed once OAuth 2.0 is activated.",
+  "permissions": ["cookies"],
+  "host_permissions": ["*://*.chess.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "chessclub Cookie Helper"
+  }
+}

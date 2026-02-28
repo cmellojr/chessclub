@@ -14,12 +14,16 @@
 
 ## Features
 
-- **Query clubs, members, and tournaments** directly from your terminal
-- **Multi-platform ready** — Chess.com today; Lichess, Lishogi, and Xiangqi.com on the roadmap
-- **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server (awaiting Chess.com client_id)
-- **Typed domain models** — `Club`, `Member`, `Tournament` as Python dataclasses, not raw dicts
+- **Club, member, and tournament data** — query any Chess.com club from your terminal
+- **Tournament games ranked by accuracy** — fetch all games from club tournaments and sort by Stockfish accuracy; filter by `--min-accuracy`
+- **Swiss + Arena support** — works for both tournament formats; falls back to the club member list when Chess.com does not expose a leaderboard for Swiss events
+- **Member activity tiers** — `This week`, `This month`, or `Inactive` labels with join date; optional `--details` for title
+- **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
+- **Disk cache** — responses cached in `~/.cache/chessclub/` with TTLs calibrated to data volatility; repeated commands run instantly
+- **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server
+- **Typed domain models** — `Club`, `Member`, `Tournament`, `Game` as Python dataclasses, never raw dicts
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
-- **Google Python Style Guide** throughout — type annotations, Google-style docstrings, 80-char lines
+- **Google Python Style Guide** throughout
 
 ---
 
@@ -31,43 +35,70 @@ git clone https://github.com/cmellojr/chessclub.git
 cd chessclub
 pip install -e .
 
-# Explore available commands
-chessclub --help
+# Public commands — no authentication needed
+chessclub club stats clube-de-xadrez-de-jundiai
+chessclub club members clube-de-xadrez-de-jundiai
 
-# Query a club (no authentication required)
-chessclub club stats chess-com-developer-community
-chessclub club members chess-com-developer-community
-
-# List tournaments (requires credentials — see Authentication below)
-chessclub club tournaments chess-com-developer-community
+# Authenticated commands — run 'chessclub auth setup' first
+chessclub club tournaments clube-de-xadrez-de-jundiai
+chessclub club games clube-de-xadrez-de-jundiai --last-n 3
+chessclub club tournament-games clube-de-xadrez-de-jundiai "26o Torneio"
 ```
 
 ---
 
 ## CLI Reference
 
+### `auth` commands
+
+| Command | Description |
+|---|---|
+| `chessclub auth setup` | Cookie fallback: save `ACCESS_TOKEN` + `PHPSESSID` from DevTools |
+| `chessclub auth login` | OAuth 2.0 PKCE browser flow — tokens auto-refresh |
+| `chessclub auth status` | Show configured credentials and validate them |
+| `chessclub auth clear` | Remove all saved credentials |
+
 ### `club` commands
 
-| Command | Description | Auth |
+All `club` commands accept `--output` / `-o`: `table` (default), `json`, or `csv`.
+
+| Command | Auth | Description |
 |---|---|---|
-| `chessclub club stats <slug>` | Display the club's display name | No |
-| `chessclub club members <slug>` | List all club members in a table | No |
-| `chessclub club tournaments <slug>` | List tournaments organised by the club | **Yes** |
+| `club stats <slug>` | No | Club name, description, country, URL |
+| `club members <slug> [--details]` | No | Members with activity tier, join date; `--details` adds title |
+| `club tournaments <slug> [--details]` | **Yes** | Tournament list; `--details` adds per-player standings |
+| `club games <slug> [--last-n N] [--min-accuracy X]` | **Yes** | Tournament games ranked by Stockfish accuracy |
+| `club tournament-games <slug> <name-or-id>` | **Yes** | Games from one tournament, by name or ID |
 
-**Example output — `club members`:**
+---
 
-```
-                Members — chess-com-developer-community
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Username                                        ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ erik                                            │
-│ danya                                           │
-│ ...                                             │
-└─────────────────────────────────────────────────┘
+### `club members`
+
+```bash
+chessclub club members clube-de-xadrez-de-jundiai
+chessclub club members clube-de-xadrez-de-jundiai --details   # adds chess title (slower)
 ```
 
-**Example output — `club tournaments`:**
+```
+            Members — clube-de-xadrez-de-jundiai
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Username    ┃ Activity     ┃     Joined ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ alice       │ This week    │ 2023-04-01 │
+│ bob         │ This month   │ 2022-11-15 │
+│ carol       │ Inactive     │ 2021-06-30 │
+└─────────────┴──────────────┴────────────┘
+Total: 3 members
+```
+
+---
+
+### `club tournaments`
+
+```bash
+chessclub club tournaments clube-de-xadrez-de-jundiai
+chessclub club tournaments clube-de-xadrez-de-jundiai --details
+```
 
 ```
            Tournaments — clube-de-xadrez-de-jundiai
@@ -80,77 +111,112 @@ chessclub club tournaments chess-com-developer-community
 Total: 2 tournaments
 ```
 
-### `auth` commands
+---
 
-| Command | Description |
+### `club games`
+
+Fetches games from the *N* most recent tournaments and ranks them by average
+Stockfish accuracy. Games without accuracy data (Game Review not run) appear last.
+
+```bash
+chessclub club games clube-de-xadrez-de-jundiai              # last 5 tournaments
+chessclub club games clube-de-xadrez-de-jundiai --last-n 2
+chessclub club games clube-de-xadrez-de-jundiai --min-accuracy 85
+chessclub club games clube-de-xadrez-de-jundiai --last-n 0   # all tournaments
+```
+
+```
+                    Tournament Games — clube-de-xadrez-de-jundiai
+┏━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Tournament   ┃ White  ┃  W% ┃ Black        ┃   B%  ┃ Avg% ┃ Result ┃       Date ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ 6265185      │ alice  │ 94.3│ bob          │  91.2 │ 92.7 │ 1-0    │ 2026-02-25 │
+│ 6265185      │ carol  │ 88.0│ alice        │  85.5 │ 86.7 │ 0-1    │ 2026-02-25 │
+└──────────────┴────────┴─────┴──────────────┴───────┴──────┴────────┴────────────┘
+Total: 2 games (2 with accuracy data)
+```
+
+---
+
+### `club tournament-games`
+
+Fetches all games from a single tournament, identified by name (partial,
+case-insensitive) or exact numeric ID.
+
+```bash
+chessclub club tournament-games clube-de-xadrez-de-jundiai "26o Torneio"
+chessclub club tournament-games clube-de-xadrez-de-jundiai 6265185
+```
+
+When multiple tournaments match the name, the most recent one is used.
+
+---
+
+## Disk Cache
+
+`chessclub` stores API responses in `~/.cache/chessclub/` to avoid repeating
+network calls. The second run of any command is nearly instant.
+
+| Data | TTL |
 |---|---|
-| `chessclub auth login` | OAuth 2.0 PKCE browser flow — authenticate once, tokens auto-refresh |
-| `chessclub auth setup` | Cookie fallback: extract session cookies from DevTools and save |
-| `chessclub auth status` | Show OAuth token and/or cookie session status; validate against Chess.com |
-| `chessclub auth clear` | Remove all locally stored credentials (OAuth token and cookies) |
+| Game archives — past months | 30 days (immutable) |
+| Game archives — current month | 1 hour |
+| Player profiles | 24 hours |
+| Club member list | 1 hour |
+| Club info | 24 hours |
+| Tournament leaderboard | 7 days |
+| Club tournament list | 30 minutes |
+
+Only HTTP 200 responses are cached. Errors (404, 429) always go to the network.
+To force a refresh: `rm -rf ~/.cache/chessclub/`
+
+See [docs/cache.md](docs/cache.md) for the full implementation notes.
 
 ---
 
 ## Authentication
 
-Some Chess.com endpoints (notably the tournament list) require authentication.
-`chessclub` handles credentials as a **separate layer** from the provider — the provider
-never knows how credentials are obtained or stored.
+Some Chess.com endpoints require authentication. `chessclub` handles credentials
+as a **separate layer** from the provider — the provider never knows how
+credentials are obtained or stored.
 
-### OAuth 2.0 PKCE (primary method)
-
-```bash
-chessclub auth login
-```
-
-Implements the Authorization Code + PKCE flow with a Loopback Local Server redirect URI
-(RFC 8252), matching the pattern used by `gcloud`, `aws-cli`, and `gh`. The command:
-
-1. Opens your browser to the Chess.com authorization page
-2. Starts a temporary HTTP server on a random loopback port (`127.0.0.1:PORT`)
-3. Captures the authorization code from the redirect automatically
-4. Exchanges the code for an access token + refresh token
-5. Saves tokens to `~/.config/chessclub/oauth_token.json` (`0o600` permissions)
-
-Tokens refresh automatically — no manual re-authentication needed.
-
-> **Note:** `auth login` requires a `CHESSCOM_CLIENT_ID` environment variable.
-> The OAuth 2.0 implementation is complete; a developer application approval from
-> Chess.com is pending. Once available, the `client_id` will be bundled in the
-> package and no configuration will be needed by end users.
-
-### Cookie fallback (`auth setup`)
+### Cookie fallback (`auth setup`) — recommended
 
 ```bash
 chessclub auth setup
 ```
 
-Until OAuth is fully activated, this command guides you through extracting session
-cookies from your browser's DevTools:
+Guides you through extracting session cookies from your browser DevTools:
 
 | Cookie | Where to find it | Expiry |
 |---|---|---|
 | `ACCESS_TOKEN` | DevTools → Application → Cookies → chess.com | ~24 hours |
 | `PHPSESSID` | DevTools → Application → Cookies → chess.com | Session |
 
+Re-run `auth setup` when commands return authentication errors.
+
+### OAuth 2.0 PKCE (`auth login`)
+
+Implements the Authorization Code + PKCE flow with a Loopback Local Server
+(RFC 8252). Tokens auto-refresh — no manual re-authentication needed.
+
+> **Note:** requires `CHESSCOM_CLIENT_ID` set in the environment. The OAuth
+> implementation is complete; a Chess.com developer application approval is
+> pending.
+
 ### Credential resolution order
 
-When making an authenticated request, the active method is selected in this order:
-
 ```
-1. OAuth 2.0 token    (~/.config/chessclub/oauth_token.json)  ← preferred
+1. OAuth 2.0 token    ~/.config/chessclub/oauth_token.json   ← preferred
 2. Environment vars   CHESSCOM_ACCESS_TOKEN + CHESSCOM_PHPSESSID
-3. Credentials file   ~/.config/chessclub/credentials.json (saved by auth setup)
+3. Credentials file   ~/.config/chessclub/credentials.json
 ```
 
-All credential files are created with `0o600` permissions (owner read/write only).
+All files are created with `0o600` permissions.
 
 ---
 
 ## Architecture
-
-`chessclub` uses a strict layered architecture where each layer depends only on
-the layers below it:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -162,7 +228,8 @@ the layers below it:
 │  providers/chesscom                             │
 │  · ChessComClient     implements ChessProvider  │
 │  · ChessComCookieAuth implements AuthProvider   │
-│  · ChessComOAuth      OAuth 2.0 PKCE + Loopback Server      │
+│  · ChessComOAuth      OAuth 2.0 PKCE + Loopback │
+│  · DiskCache          ~/.cache/chessclub/       │
 └───────────────────┬─────────────────────────────┘
                     │ imports abstractions from
        ┌────────────▼──────────┐  ┌──────────────┐
@@ -175,21 +242,22 @@ the layers below it:
                         ┌────────────────▼──────────────┐
                         │  core/  (zero project imports) │
                         │  · ChessProvider (ABC)         │
-                        │  · Club, Member, Tournament    │
+                        │  · Club, Member, Tournament,   │
+                        │    TournamentResult, Game      │
                         │  · ChessclubError hierarchy    │
                         └────────────────────────────────┘
 ```
 
-**Dependency rule:** `core/` imports nothing from this project. `services/` imports
-only from `core/`. No layer imports from a layer above it.
+**Dependency rule:** `core/` imports nothing from this project. `services/`
+imports only from `core/`. No layer imports from a layer above it.
 
 ### Adding a new platform (e.g. Lichess)
 
-1. **`providers/lichess/auth.py`** — implement `AuthProvider` for Lichess API tokens.
-2. **`providers/lichess/client.py`** — implement `ChessProvider` using the Lichess API.
-3. **`chessclub_cli/main.py`** — wire the new provider in the composition root.
+1. `providers/lichess/auth.py` — implement `AuthProvider`.
+2. `providers/lichess/client.py` — implement `ChessProvider`.
+3. `chessclub_cli/main.py` — wire in the composition root.
 
-No changes to `core/`, `services/`, or any existing provider are needed.
+No other files change.
 
 ---
 
@@ -200,19 +268,36 @@ src/
 ├── chessclub/
 │   ├── core/
 │   │   ├── interfaces.py     # ChessProvider ABC
-│   │   ├── models.py         # Club, Member, Tournament, TournamentResult
+│   │   ├── models.py         # Club, Member, Tournament, TournamentResult, Game
 │   │   └── exceptions.py     # ChessclubError, AuthenticationRequiredError
 │   ├── auth/
-│   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials dataclass
-│   │   └── credentials.py    # credentials.json (cookies) + oauth_token.json (OAuth)
+│   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials
+│   │   └── credentials.py    # credentials.json + oauth_token.json
 │   ├── providers/
 │   │   └── chesscom/
-│   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
+│   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth
+│   │       ├── cache.py      # DiskCache + CachedResponse
 │   │       └── client.py     # ChessComClient
 │   └── services/
 │       └── club_service.py   # ClubService
 └── chessclub_cli/
     └── main.py               # Typer CLI (composition root)
+docs/
+├── features.md               # Full CLI reference
+├── cache.md                  # Cache design and TTL policy
+└── roadmap.md                # Development roadmap
+tests/
+├── test_models.py
+└── test_cli.py
+```
+
+---
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
 ```
 
 ---
@@ -223,50 +308,26 @@ src/
 - [x] Chess.com
 - [ ] Lichess
 - [ ] Lishogi
-- [ ] Xiangqi.com
-
-### Authentication
-- [x] Cookie-based auth (Chess.com)
-- [~] OAuth 2.0 PKCE + Loopback Server — implemented, awaiting Chess.com client_id
-- [ ] API token auth (Lichess)
 
 ### Features
-- [ ] `--output json` / `--output csv` flag on all commands
-- [ ] `club tournaments <slug> --details` — player standings per tournament
-- [ ] `player stats <username>` — player profile and ratings
+- [x] `--output json` / `--output csv` on all commands
+- [x] `club members` — activity tier, join date, optional title
+- [x] `club tournaments --details` — per-player standings
+- [x] `club games` — tournament games ranked by Stockfish accuracy
+- [x] `club tournament-games` — games from a specific tournament
+- [x] Disk cache — TTL-based, `~/.cache/chessclub/`
+- [ ] `club leaderboard <slug> --year` — annual points aggregation
+- [ ] Player aliases — group multiple usernames under one identity
+- [ ] Head-to-head matchup table
+
+See [docs/roadmap.md](docs/roadmap.md) for the full plan.
 
 ---
 
 ## Contributing
 
-Contributions are welcome — bug reports, feature requests, and pull requests alike.
-
-### Branch model
-
-| Branch | Purpose |
-|---|---|
-| `main` | Stable; tagged releases only |
-| `develop` | Active development; target for all PRs |
-| `feature/<name>` | New features and fixes, branched off `develop` |
-| `hotfix/<name>` | Urgent production fixes, branched off `main` |
-
-**Please target all pull requests at `develop`, not `main`.**
-
-### Getting started
-
-```bash
-git clone https://github.com/cmellojr/chessclub.git
-cd chessclub
-git checkout develop
-
-pip install -e .
-
-# Verify everything works
-chessclub club stats chess-com-developer-community
-```
-
-Before submitting a PR, please read [CLAUDE.md](CLAUDE.md) for the project's
-architecture conventions, dependency rules, and code style guidelines.
+Target all pull requests at `develop`, not `main`. See [CLAUDE.md](CLAUDE.md)
+for architecture conventions, dependency rules, and code style.
 
 ---
 

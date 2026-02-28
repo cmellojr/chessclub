@@ -19,6 +19,9 @@ dependencies = [
     "typer[all]>=0.12"
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [project.scripts]
 chessclub = "chessclub_cli.main:app"
 
@@ -27,3 +30,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
