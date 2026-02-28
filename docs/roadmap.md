@@ -7,13 +7,19 @@ Reference with `@docs/roadmap.md` in Claude Code prompts for plan context.
 
 ## MVP — Core Features
 
-### Phase 1 — Data Foundation
+### Phase 1 — Data Foundation ✅
 
-- [ ] Implement `--output json` on all existing CLI commands
-- [ ] Implement `--output csv` on all existing CLI commands
-- [ ] Add `Game` model in `core/models.py` with fields: `white`, `black`, `result`, `opening_eco`, `pgn`, `played_at`
-- [ ] Implement `club tournaments <slug> --details` with full per-tournament standings (participants, position, score, rating at the time of the tournament)
-- [ ] Add unit tests for new models and `--details` command
+- [x] Implement `--output json` on all existing CLI commands
+- [x] Implement `--output csv` on all existing CLI commands
+- [x] Add `Game` model in `core/models.py` with fields: `white`, `black`, `result`, `opening_eco`, `pgn`, `played_at`
+- [x] Implement `club tournaments <slug> --details` with full per-tournament standings (participants, position, score, rating at the time of the tournament)
+- [x] Add unit tests for new models and `--details` command
+
+**Also implemented (not in original scope):**
+- [x] `club members <slug>` — activity tier (weekly/monthly/inactive), join date, optional `--details` for title
+- [x] `club games <slug>` — tournament games ranked by Stockfish accuracy; `--last-n` and `--min-accuracy` filters
+- [x] `club tournament-games <slug> <name-or-id>` — games from a specific tournament by name or ID
+- [x] Swiss tournament fallback — when the Chess.com leaderboard endpoint returns 404 for Swiss format, falls back to club member list as participant set
 
 ### Phase 2 — Player Aliases (multiple identities)
 
@@ -36,7 +42,7 @@ Players who use more than one username can be grouped under a single unified ide
 - [ ] Implement `chessclub club leaderboard <slug> --year <year>` command with `--type arena|swiss` filter
 - [ ] Implement `RatingHistoryService` to track rating evolution per tournament
 - [ ] Implement `chessclub player rating-history <username> --club <slug>` command
-- [ ] Implement local cache in `~/.cache/chessclub/` (JSON or SQLite) for immutable past tournament data
+- [x] Implement local cache in `~/.cache/chessclub/` (JSON files) for immutable past tournament data — see [`docs/cache.md`](cache.md)
 - [ ] Implement `MatchupService` for head-to-head records between club members
 - [ ] Implement `chessclub club matchups <slug>` command with head-to-head table
 - [ ] Add unit tests for each new service and command

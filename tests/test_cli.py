@@ -162,7 +162,7 @@ def test_members_csv_output(mock_club, mock_members):
         )
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
-    assert lines[0] == "username,rating,title,joined_at"
+    assert lines[0] == "username,title,activity,joined_at"
     assert "alice" in lines[1]
 
 

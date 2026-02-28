@@ -73,3 +73,40 @@ class TestGame:
             played_at=None,
         )
         assert game.result == "0-1"
+
+    def test_avg_accuracy_both_present(self):
+        game = Game(
+            white="alice",
+            black="bob",
+            result="1-0",
+            opening_eco=None,
+            pgn=None,
+            played_at=None,
+            white_accuracy=90.0,
+            black_accuracy=80.0,
+        )
+        assert game.avg_accuracy == 85.0
+
+    def test_avg_accuracy_one_none(self):
+        game = Game(
+            white="alice",
+            black="bob",
+            result="1-0",
+            opening_eco=None,
+            pgn=None,
+            played_at=None,
+            white_accuracy=70.0,
+            black_accuracy=None,
+        )
+        assert game.avg_accuracy == 70.0
+
+    def test_avg_accuracy_both_none(self):
+        game = Game(
+            white="alice",
+            black="bob",
+            result="1-0",
+            opening_eco=None,
+            pgn=None,
+            played_at=None,
+        )
+        assert game.avg_accuracy is None

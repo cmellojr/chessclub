@@ -36,7 +36,12 @@ class Member:
     username: str
     rating: int | None
     title: str | None
-    joined_at: str | None
+    joined_at: int | None
+    """Unix timestamp of when the member joined the club, or ``None`` if unknown."""
+
+    activity: str | None = None
+    """Activity tier reported by the provider: ``"weekly"``, ``"monthly"``,
+    or ``"all_time"``.  ``None`` when not available."""
 
 
 # ----------------------
@@ -65,6 +70,15 @@ class Tournament:
     player_count: int
     winner_username: str | None
     winner_score: float | None
+
+    club_slug: str | None = None
+    """Slug of the club that organised this tournament.
+
+    Populated when the tournament is fetched via
+    :meth:`~chessclub.core.interfaces.ChessProvider.get_club_tournaments`.
+    Used internally as a fallback participant source when the leaderboard
+    endpoint is unavailable (e.g. Swiss format on Chess.com).
+    """
 
 
 # ----------------------
@@ -110,3 +124,24 @@ class Game:
 
     played_at: int | None
     """Unix timestamp of when the game was played, or ``None`` if unknown."""
+
+    white_accuracy: float | None = None
+    """Stockfish accuracy for the white player (0–100), or ``None`` if not reviewed."""
+
+    black_accuracy: float | None = None
+    """Stockfish accuracy for the black player (0–100), or ``None`` if not reviewed."""
+
+    tournament_id: str | None = None
+    """Provider-specific ID of the tournament this game belongs to."""
+
+    @property
+    def avg_accuracy(self) -> float | None:
+        """Average Stockfish accuracy of both players.
+
+        Returns:
+            Mean of whichever accuracy values are present, or ``None`` if
+            neither player has been reviewed.
+        """
+        vals = [v for v in (self.white_accuracy, self.black_accuracy)
+                if v is not None]
+        return sum(vals) / len(vals) if vals else None
