@@ -140,19 +140,18 @@ def setup():
 
     console.print("\n[bold]How to retrieve cookies after login:[/bold]")
     console.print(
-        "  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools"
+        "  1. After logging in, click the [cyan]chessclub Cookie Helper[/cyan] "
+        "icon in the browser toolbar (Chess.com knight icon)."
     )
     console.print(
-        "  2. Go to the [cyan]Application[/cyan] tab (Chrome) "
-        "or [cyan]Storage[/cyan] (Firefox)"
+        "  2. The extension shows [cyan]ACCESS_TOKEN[/cyan] and "
+        "[cyan]PHPSESSID[/cyan] — copy each value and paste below.\n"
     )
     console.print(
-        "  3. In the sidebar, click "
-        "[cyan]Cookies → https://www.chess.com[/cyan]"
-    )
-    console.print(
-        "  4. Copy the value of "
-        "[cyan]ACCESS_TOKEN[/cyan] and [cyan]PHPSESSID[/cyan]\n"
+        "[dim]No extension? Install it from "
+        "[bold]tools/chessclub-cookie-helper/[/bold] "
+        "(load unpacked in chrome://extensions). "
+        "Or open DevTools → Application → Cookies → https://www.chess.com.[/dim]\n"
     )
 
     access_token = typer.prompt("Paste the ACCESS_TOKEN value", hide_input=True)
