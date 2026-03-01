@@ -16,7 +16,7 @@ from chessclub.core.models import (
     Tournament,
     TournamentResult,
 )
-from chessclub.providers.chesscom.cache import CachedResponse, DiskCache
+from chessclub.providers.chesscom.cache import CachedResponse, SQLiteCache
 
 
 class ChessComClient(ChessProvider):
@@ -64,7 +64,7 @@ class ChessComClient(ChessProvider):
                 self.session.cookies.set(name, value, domain="www.chess.com")
             self.session.headers.update(credentials.headers)
 
-        self._cache = DiskCache()
+        self._cache = SQLiteCache()
 
     def get_club(self, slug: str) -> Club:
         """Return general information about a club.

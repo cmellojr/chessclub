@@ -16,32 +16,33 @@ their time-to-live.
 
 ## Storage
 
-Cache files live at:
+The cache lives in a single SQLite database file:
 
 ```
-~/.cache/chessclub/
+~/.cache/chessclub/cache.db
 ```
 
-Each entry is a single JSON file:
+Schema:
 
-```
-~/.cache/chessclub/{sha256_of_url}.json
+```sql
+CREATE TABLE cache (
+    key        TEXT PRIMARY KEY,   -- full request URL (+ serialised params)
+    expires_at REAL NOT NULL,      -- Unix timestamp of expiry
+    body       TEXT NOT NULL       -- JSON-serialised response body
+);
+CREATE INDEX idx_expires ON cache (expires_at);
 ```
 
-The filename is the **SHA-256 hash of the full request URL** (including
-serialised query parameters), so cache files are content-addressed and
-collision-free. The file body is:
-
-```json
-{
-  "expires_at": 1740000000.0,
-  "body": { ... }
-}
-```
+The cache key is the full request URL. If query parameters are present
+(e.g. `?page=1`) they are serialised with `json.dumps(params, sort_keys=True)`
+and appended, ensuring page-level granularity.
 
 Only **HTTP 200** responses are stored. Errors (404, 429, 401) always bypass
 the cache — they are never written and the next request always goes to the
 network.
+
+WAL journal mode is enabled for better concurrent read performance and atomic
+writes.
 
 ---
 
@@ -68,17 +69,21 @@ The cache is implemented in
 [`src/chessclub/providers/chesscom/cache.py`](../src/chessclub/providers/chesscom/cache.py)
 and consists of two classes:
 
-### `DiskCache`
+### `SQLiteCache`
 
-Handles reading and writing cache entries.
+Handles reading and writing cache entries via `sqlite3` (Python stdlib).
 
 - **`get(key)`** — returns the cached `body` dict if the entry exists and has
-  not expired; otherwise deletes the stale file and returns `None`.
-- **`set(key, body, ttl)`** — writes the entry with `expires_at = now + ttl`.
-  Write failures (e.g. read-only filesystem) are silently ignored — the cache
-  is always optional.
-- **`_path(key)`** — maps the key to `{sha256}.json` under the cache
-  directory.
+  not expired; otherwise deletes the stale row and returns `None`.
+- **`set(key, body, ttl)`** — writes the entry with `expires_at = now + ttl`
+  using `INSERT OR REPLACE`. Write failures (e.g. read-only filesystem) are
+  silently ignored — the cache is always optional.
+- **`clear()`** — deletes all entries; returns the count removed. Used by
+  `chessclub cache clear`.
+- **`purge_expired()`** — deletes only entries whose TTL has elapsed; returns
+  the count removed. Used by `chessclub cache clear --expired`.
+- **`stats()`** — returns `{total, active, expired, size_bytes}`. Used by
+  `chessclub cache stats`.
 
 ### `CachedResponse`
 
@@ -121,10 +126,6 @@ _cached_get(url)
            └─ return response  [errors pass through uncached]
 ```
 
-The cache key is the URL; if query parameters are present (e.g. `?page=1`)
-they are serialised with `json.dumps(params, sort_keys=True)` and appended,
-ensuring page-level granularity.
-
 All `session.get()` calls in the client go through `_cached_get()`:
 `get_club`, `get_club_members`, `get_player`, `get_club_tournaments`,
 `_try_leaderboard`, and the game archive loop in `get_tournament_games`.
@@ -133,30 +134,43 @@ All `session.get()` calls in the client go through `_cached_get()`:
 
 ## Clearing the cache
 
-To remove all cached entries:
+### Via CLI (recommended)
 
 ```bash
-rm -rf ~/.cache/chessclub/
+# Remove all entries
+chessclub cache clear
+
+# Remove only expired entries (keep still-valid responses)
+chessclub cache clear --expired
+
+# Inspect the cache before clearing
+chessclub cache stats
 ```
 
-Or selectively delete files for a specific date range (e.g. to force a refresh
-of February 2026 archives):
+### Manually
 
 ```bash
-# The file names are SHA-256 hashes — delete them all to force a full refresh.
-rm ~/.cache/chessclub/*.json
+# Delete the entire database
+rm ~/.cache/chessclub/cache.db
 ```
-
-There is currently no `chessclub cache clear` command. If you need fresh data
-before the TTL expires, delete the directory manually.
 
 ---
 
 ## Cache misses and stale data
 
-Entries expire lazily: the stale file is deleted on the **first read** after
+Entries expire lazily: the stale row is deleted on the **first read** after
 expiry, and the next request goes to the network. There is no background
 cleanup process.
 
 If you suspect a command is returning stale data (e.g. after a new member
-joined mid-session), delete `~/.cache/chessclub/` and re-run.
+joined mid-session), run:
+
+```bash
+chessclub cache clear --expired
+```
+
+Or clear everything and re-run the command:
+
+```bash
+chessclub cache clear
+```

@@ -1,8 +1,8 @@
-"""Disk-backed HTTP response cache for the Chess.com provider.
+"""SQLite-backed HTTP response cache for the Chess.com provider.
 
-Cached entries live under ``~/.cache/chessclub/`` as JSON files named
-after the SHA-256 of the request URL (query parameters included in the
-key).  Only HTTP 200 responses are stored; errors are never cached.
+All cached entries live in a single SQLite database at
+``~/.cache/chessclub/cache.db``.  Only HTTP 200 responses are stored;
+errors are never cached.
 
 TTL policy (set by :meth:`ChessComClient._cache_ttl`):
 
@@ -25,36 +25,82 @@ TTL policy (set by :meth:`ChessComClient._cache_ttl`):
 +-------------------------------------------+-------------+--------------------------------------------+
 """
 
-import hashlib
 import json
+import sqlite3
 import time
 from pathlib import Path
 
-_DEFAULT_CACHE_DIR = Path.home() / ".cache" / "chessclub"
 
+class SQLiteCache:
+    """SQLite-backed JSON cache with per-entry TTL.
 
-class DiskCache:
-    """File-backed JSON cache with per-entry TTL.
+    All entries are stored in a single SQLite database file::
 
-    Each entry is a JSON file ``{sha256_of_key}.json`` containing::
+        ~/.cache/chessclub/cache.db
 
-        {"expires_at": <unix_timestamp>, "body": <response_dict>}
+    Schema::
 
+        CREATE TABLE cache (
+            key        TEXT PRIMARY KEY,
+            expires_at REAL NOT NULL,
+            body       TEXT NOT NULL
+        )
+
+    WAL journal mode is enabled for better concurrent read performance.
     Expired entries are removed lazily on the first read attempt.
-    Write failures are silently ignored so that a read-only filesystem
-    never breaks the application.
+    All write and read failures are silently ignored so that an
+    inaccessible filesystem never breaks the application.
 
     Args:
-        cache_dir: Directory for cache files.  Defaults to
-            ``~/.cache/chessclub/``.
+        path: Path to the SQLite database file.  Defaults to
+            ``~/.cache/chessclub/cache.db``.
     """
 
-    def __init__(self, cache_dir: Path = _DEFAULT_CACHE_DIR):
-        self._dir = cache_dir
+    _DB_PATH: Path = Path.home() / ".cache" / "chessclub" / "cache.db"
+
+    def __init__(self, path: Path | None = None):
+        self._path = path or self._DB_PATH
         try:
-            self._dir.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass  # Non-fatal — cache will silently become a no-op.
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._init_db()
+        except (sqlite3.Error, OSError):
+            pass  # Non-fatal — cache becomes a no-op.
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self._path), timeout=5)
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cache (
+                    key        TEXT PRIMARY KEY,
+                    expires_at REAL NOT NULL,
+                    body       TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_expires "
+                "ON cache (expires_at)"
+            )
+
+    def _delete(self, key: str) -> None:
+        try:
+            with self._connect() as conn:
+                conn.execute("DELETE FROM cache WHERE key = ?", (key,))
+        except sqlite3.Error:
+            pass
+
+    # ------------------------------------------------------------------
+    # Public interface (same as the former DiskCache)
+    # ------------------------------------------------------------------
 
     def get(self, key: str) -> dict | None:
         """Return the cached response body, or ``None`` on miss or expiry.
@@ -65,20 +111,24 @@ class DiskCache:
         Returns:
             The cached JSON body dict, or ``None``.
         """
-        path = self._path(key)
-        if not path.exists():
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT body, expires_at FROM cache WHERE key = ?",
+                    (key,),
+                ).fetchone()
+        except sqlite3.Error:
+            return None
+        if row is None:
+            return None
+        body_json, expires_at = row
+        if expires_at <= time.time():
+            self._delete(key)
             return None
         try:
-            entry = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            return json.loads(body_json)
+        except (ValueError, TypeError):
             return None
-        if time.time() > entry.get("expires_at", 0):
-            try:
-                path.unlink()
-            except OSError:
-                pass
-            return None
-        return entry.get("body")
 
     def set(self, key: str, body: dict, ttl: int) -> None:
         """Write *body* to the cache with a time-to-live of *ttl* seconds.
@@ -88,18 +138,73 @@ class DiskCache:
             body: JSON-serialisable response body to store.
             ttl: Seconds until the entry expires.
         """
-        path = self._path(key)
         try:
-            path.write_text(
-                json.dumps({"expires_at": time.time() + ttl, "body": body}),
-                encoding="utf-8",
-            )
-        except OSError:
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO cache (key, expires_at, body) "
+                    "VALUES (?, ?, ?)",
+                    (key, time.time() + ttl, json.dumps(body)),
+                )
+        except (sqlite3.Error, OSError):
             pass  # Non-fatal.
 
-    def _path(self, key: str) -> Path:
-        h = hashlib.sha256(key.encode()).hexdigest()
-        return self._dir / f"{h}.json"
+    # ------------------------------------------------------------------
+    # Cache management (used by the CLI cache commands)
+    # ------------------------------------------------------------------
+
+    def clear(self) -> int:
+        """Delete all cache entries.
+
+        Returns:
+            Number of entries deleted.
+        """
+        try:
+            with self._connect() as conn:
+                return conn.execute("DELETE FROM cache").rowcount
+        except sqlite3.Error:
+            return 0
+
+    def purge_expired(self) -> int:
+        """Delete only entries whose TTL has elapsed.
+
+        Returns:
+            Number of entries deleted.
+        """
+        try:
+            with self._connect() as conn:
+                return conn.execute(
+                    "DELETE FROM cache WHERE expires_at <= ?",
+                    (time.time(),),
+                ).rowcount
+        except sqlite3.Error:
+            return 0
+
+    def stats(self) -> dict:
+        """Return cache statistics.
+
+        Returns:
+            Dict with keys ``total``, ``active``, ``expired``,
+            ``size_bytes``.  Empty dict on error.
+        """
+        try:
+            now = time.time()
+            with self._connect() as conn:
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM cache"
+                ).fetchone()[0]
+                expired = conn.execute(
+                    "SELECT COUNT(*) FROM cache WHERE expires_at <= ?",
+                    (now,),
+                ).fetchone()[0]
+            size = self._path.stat().st_size if self._path.exists() else 0
+            return {
+                "total": total,
+                "active": total - expired,
+                "expired": expired,
+                "size_bytes": size,
+            }
+        except (sqlite3.Error, OSError):
+            return {}
 
 
 class CachedResponse:
