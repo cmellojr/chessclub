@@ -10,11 +10,13 @@ import csv
 import io
 import json
 import os
+import re
 import sys
+import textwrap
 import time
 import webbrowser
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 # Ensure UTF-8 output on Windows where stdout may default to cp1252.
@@ -26,7 +28,9 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import requests
 import typer
+from rich.align import Align
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from chessclub.auth import credentials as creds_store
@@ -299,18 +303,85 @@ def stats(
     service = _get_service()
     club = service.get_club(slug)
 
+    # Tournament count requires auth; omit silently if unavailable.
+    tournaments_count: int | None = None
+    try:
+        tournaments_count = len(service.get_club_tournaments(slug))
+    except (AuthenticationRequiredError, Exception):
+        pass
+
+    club.matches_count = tournaments_count
+
     if output == OutputFormat.json:
         print(json.dumps(asdict(club), indent=2))
     elif output == OutputFormat.csv:
         print(
             _to_csv(
                 [asdict(club)],
-                ["id", "name", "description", "country", "url"],
+                [
+                    "id",
+                    "name",
+                    "description",
+                    "country",
+                    "url",
+                    "members_count",
+                    "created_at",
+                    "location",
+                    "matches_count",
+                ],
             ),
             end="",
         )
     else:
-        console.print(club.name)
+        # Country URL → flag emoji (e.g. ".../country/BR" → "🇧🇷")
+        def _flag(country_url: str | None) -> str:
+            if not country_url:
+                return ""
+            code = country_url.rstrip("/").split("/")[-1].upper()
+            if len(code) != 2 or not code.isalpha():
+                return ""
+            return "".join(
+                chr(0x1F1E0 + ord(c) - ord("A")) for c in code
+            )
+
+        # Strip HTML tags; convert <br> to newline first
+        def _strip_html(html: str | None) -> str:
+            if not html:
+                return ""
+            text = re.sub(r"<br\s*/?>", "\n", html, flags=re.IGNORECASE)
+            text = re.sub(r"<[^>]+>", "", text)
+            return text.strip()
+
+        _WIDTH = 80
+
+        flag = _flag(club.country)
+        title = f"{flag} {club.name}" if flag else club.name
+        console.print(
+            Panel(
+                Align.center(f"[bold]{title}[/bold]"),
+                padding=(0, 2),
+                width=_WIDTH,
+            )
+        )
+
+        stats_parts: list[str] = []
+        if club.members_count is not None:
+            stats_parts.append(f"[cyan]{club.members_count}[/cyan] Membros")
+        if club.created_at is not None:
+            dt = datetime.fromtimestamp(club.created_at, tz=timezone.utc)
+            stats_parts.append(
+                f"Criado em [cyan]{dt.strftime('%d/%m/%Y')}[/cyan]"
+            )
+        if club.matches_count is not None:
+            stats_parts.append(f"[cyan]{club.matches_count}[/cyan] Eventos")
+        if stats_parts:
+            console.print("  " + "  |  ".join(stats_parts) + "\n")
+
+        description = _strip_html(club.description)
+        if description:
+            for line in description.splitlines():
+                wrapped = textwrap.fill(line, width=_WIDTH) if line else ""
+                console.print(wrapped)
 
 
 _ACTIVITY_LABEL: dict[str, str] = {
@@ -454,6 +525,8 @@ def tournaments(
 
     else:
         # Default: table output
+        data.sort(key=lambda t: t.end_date or 0, reverse=True)
+
         table = Table(title=f"Tournaments — {slug}", show_lines=False)
         table.add_column("Name", style="cyan", no_wrap=False)
         table.add_column("Type", style="dim")
@@ -464,7 +537,7 @@ def tournaments(
         for t in data:
             score = str(t.winner_score) if t.winner_score is not None else "—"
             table.add_row(
-                t.name,
+                t.name.lstrip(),
                 t.tournament_type,
                 _fmt_date(t.start_date),
                 str(t.player_count),

@@ -89,6 +89,9 @@ class ChessComClient(ChessProvider):
             description=data.get("description"),
             country=data.get("country"),
             url=data.get("url"),
+            members_count=data.get("members_count"),
+            created_at=data.get("created"),
+            location=data.get("location"),
         )
 
     def get_club_members(

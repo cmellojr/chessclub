@@ -132,7 +132,10 @@ def test_stats_csv_output(mock_club):
         )
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
-    assert lines[0] == "id,name,description,country,url"
+    assert lines[0] == (
+        "id,name,description,country,url,"
+        "members_count,created_at,location,matches_count"
+    )
     assert "Test Club" in lines[1]
 
 
