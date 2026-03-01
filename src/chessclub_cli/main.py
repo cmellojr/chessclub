@@ -584,11 +584,11 @@ def tournaments(
 @club_app.command(name="tournament-games")
 def tournament_games(
     slug: str,
-    name_or_id: str = typer.Argument(
-        ...,
+    name_or_id: str | None = typer.Argument(
+        None,
         help=(
             "Tournament name (partial, case-insensitive) or exact numeric ID. "
-            "Run 'chessclub club tournaments <slug>' to list available tournaments."
+            "Omit to pick interactively from a numbered list."
         ),
     ),
     output: OutputFormat = typer.Option(
@@ -597,9 +597,9 @@ def tournament_games(
 ):
     """List all games from a specific tournament, ranked by Stockfish accuracy.
 
-    Searches the club's tournament list for a name or ID match, then fetches
-    all games played in that tournament.  If several tournaments match the
-    name, the most recent one is used and a notice is printed.
+    When NAME_OR_ID is omitted, a numbered list of tournaments is shown and
+    you are prompted to choose one.  You can also pass a partial name or the
+    exact numeric tournament ID directly.
 
     Accuracy scores require Chess.com Game Review (a Chess.com premium
     feature); games without review appear at the end with '—' in accuracy
@@ -607,40 +607,94 @@ def tournament_games(
     """
     try:
         service = _get_service()
-        with console.status(
-            "[dim]Looking up tournament…[/dim]", spinner="dots"
-        ):
-            matches = service.find_tournaments_by_name_or_id(slug, name_or_id)
     except AuthenticationRequiredError as e:
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 
-    if not matches:
-        console.print(
-            f"[red]Error:[/red] No tournament matching [bold]{name_or_id!r}[/bold].",
-            highlight=False,
-        )
-        console.print(
-            "[dim]Run [bold]chessclub club tournaments "
-            f"{slug}[/bold] to list available tournaments.[/dim]"
-        )
-        raise typer.Exit(1)
+    def _fmt_acc(val: float | None) -> str:
+        return f"{val:.1f}" if val is not None else "—"
 
-    tournament = matches[0]
-    if len(matches) > 1:
-        console.print(
-            f"[yellow]Note:[/yellow] {len(matches)} tournaments matched. "
-            f"Using the most recent: [bold]{tournament.name}[/bold] "
-            f"(ID: {tournament.id})"
-        )
+    # ------------------------------------------------------------------
+    # Resolve which tournament to use
+    # ------------------------------------------------------------------
+    if name_or_id is None:
+        try:
+            with console.status(
+                "[dim]Fetching tournament list…[/dim]", spinner="dots"
+            ):
+                all_tournaments = service.get_club_tournaments(slug)
+        except AuthenticationRequiredError as e:
+            console.print(f"[red]Error:[/red] {e}", highlight=False)
+            raise typer.Exit(1)
+
+        all_tournaments.sort(key=lambda t: t.end_date or 0, reverse=True)
+
+        pick_table = Table(show_header=True, show_lines=False, box=None)
+        pick_table.add_column("#", justify="right", style="dim", width=4)
+        pick_table.add_column("Name", style="cyan")
+        pick_table.add_column("Type", style="dim", width=7)
+        pick_table.add_column("Date", justify="right", width=11)
+        pick_table.add_column("Players", justify="right", width=7)
+        for i, t in enumerate(all_tournaments, 1):
+            pick_table.add_row(
+                str(i),
+                t.name.lstrip(),
+                t.tournament_type,
+                _fmt_date(t.start_date),
+                str(t.player_count),
+            )
+        console.print(pick_table)
+
+        idx = typer.prompt("Choose tournament number", type=int)
+        if not 1 <= idx <= len(all_tournaments):
+            console.print(
+                f"[red]Error:[/red] Invalid number — must be "
+                f"1–{len(all_tournaments)}."
+            )
+            raise typer.Exit(1)
+
+        tournament = all_tournaments[idx - 1]
     else:
-        console.print(
-            f"[dim]Tournament: {tournament.name} "
-            f"(ID: {tournament.id}, "
-            f"{_fmt_date(tournament.start_date)}–{_fmt_date(tournament.end_date)})"
-            "[/dim]"
-        )
+        try:
+            with console.status(
+                "[dim]Looking up tournament…[/dim]", spinner="dots"
+            ):
+                matches = service.find_tournaments_by_name_or_id(
+                    slug, name_or_id
+                )
+        except AuthenticationRequiredError as e:
+            console.print(f"[red]Error:[/red] {e}", highlight=False)
+            raise typer.Exit(1)
 
+        if not matches:
+            console.print(
+                f"[red]Error:[/red] No tournament matching "
+                f"[bold]{name_or_id!r}[/bold].",
+                highlight=False,
+            )
+            console.print(
+                "[dim]Omit the argument to pick interactively.[/dim]"
+            )
+            raise typer.Exit(1)
+
+        tournament = matches[0]
+        if len(matches) > 1:
+            console.print(
+                f"[yellow]Note:[/yellow] {len(matches)} tournaments matched. "
+                f"Using the most recent: [bold]{tournament.name}[/bold] "
+                f"(ID: {tournament.id})"
+            )
+
+    console.print(
+        f"[dim]Tournament: {tournament.name} "
+        f"(ID: {tournament.id}, "
+        f"{_fmt_date(tournament.start_date)}–{_fmt_date(tournament.end_date)})"
+        "[/dim]"
+    )
+
+    # ------------------------------------------------------------------
+    # Fetch games
+    # ------------------------------------------------------------------
     try:
         with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
             results = service.get_tournament_results(
@@ -653,9 +707,6 @@ def tournament_games(
 
     participant_count = len({r.player for r in results})
     with_accuracy = sum(1 for g in data if g.avg_accuracy is not None)
-
-    def _fmt_acc(val: float | None) -> str:
-        return f"{val:.1f}" if val is not None else "—"
 
     if output == OutputFormat.json:
         rows = []
@@ -675,6 +726,7 @@ def tournament_games(
             "white_accuracy",
             "black_accuracy",
             "avg_accuracy",
+            "url",
         ]
         rows = []
         for g in data:
@@ -684,9 +736,7 @@ def tournament_games(
         print(_to_csv(rows, _fields), end="")
 
     else:
-        table = Table(
-            title=f"{tournament.name}", show_lines=False
-        )
+        table = Table(title=f"{tournament.name}", show_lines=False)
         table.add_column("White", style="cyan")
         table.add_column("W%", justify="right")
         table.add_column("Black", style="cyan")
@@ -694,8 +744,10 @@ def tournament_games(
         table.add_column("Avg%", justify="right", style="bold")
         table.add_column("Result", justify="center")
         table.add_column("Date", justify="right")
+        table.add_column("Link", no_wrap=True)
 
         for g in data:
+            link = f"[link={g.url}]view[/link]" if g.url else "—"
             table.add_row(
                 g.white,
                 _fmt_acc(g.white_accuracy),
@@ -704,11 +756,10 @@ def tournament_games(
                 _fmt_acc(g.avg_accuracy),
                 g.result,
                 _fmt_date(g.played_at),
+                link,
             )
 
         console.print(table)
-        # When participant_count is 0 but games were found, the provider fell
-        # back to the club member list (leaderboard endpoint unavailable).
         using_member_fallback = participant_count == 0 and len(data) > 0
         if using_member_fallback:
             participants_label = "club members (leaderboard unavailable)"

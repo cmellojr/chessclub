@@ -651,6 +651,7 @@ class ChessComClient(ChessProvider):
             white_accuracy=accuracies.get("white"),
             black_accuracy=accuracies.get("black"),
             tournament_id=tournament_id,
+            url=raw.get("url"),
         )
 
     @staticmethod

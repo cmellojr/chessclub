@@ -146,6 +146,9 @@ class Game:
     tournament_id: str | None = None
     """Provider-specific ID of the tournament this game belongs to."""
 
+    url: str | None = None
+    """Direct URL to the game on the provider's website."""
+
     @property
     def avg_accuracy(self) -> float | None:
         """Average Stockfish accuracy of both players.
