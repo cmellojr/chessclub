@@ -1,19 +1,19 @@
-# chessclub — Guia de Uso
+# chessclub — User Guide
 
-Este guia cobre instalação, autenticação e todos os comandos da CLI com
-exemplos de saída reais.
+This guide covers installation, authentication, and all CLI commands with
+real example outputs.
 
 ---
 
-## Instalação
+## Installation
 
 ```bash
-git clone https://github.com/your-org/chessclub.git
+git clone https://github.com/cmellojr/chessclub.git
 cd chessclub
 pip install -e .
 ```
 
-Verifique:
+Verify:
 
 ```
 $ chessclub --help
@@ -31,65 +31,68 @@ $ chessclub --help
 
 ---
 
-## Autenticação
+## Authentication
 
-A maioria dos comandos requer credenciais Chess.com. Há dois métodos.
+Most commands require Chess.com credentials. There are two methods.
 
-### Método 1 — Cookies (padrão)
+### Method 1 — Cookies (recommended)
 
-**Pré-requisito:** extensão `chessclub Cookie Helper` instalada no Chrome
-(carregar sem empacotar a partir de `tools/chessclub-cookie-helper/`).
+**Prerequisite:** install the `chessclub Cookie Helper` Chrome extension by
+loading it unpacked from `tools/chessclub-cookie-helper/`.
 
 ```
 $ chessclub auth setup
 
-Abrindo https://www.chess.com no navegador...
-Faça login e clique no ícone da extensão na barra do navegador.
+Opening https://www.chess.com in the browser...
+Log in and click the extension icon in the browser toolbar.
 
 Paste ACCESS_TOKEN: ****
 Paste PHPSESSID   : ****
 
-✓ Credenciais salvas em ~/.config/chessclub/credentials.json
+✓ Credentials saved to ~/.config/chessclub/credentials.json
 ```
 
-### Método 2 — OAuth 2.0 (quando disponível)
+### Method 2 — OAuth 2.0 (when available)
 
 ```
 $ chessclub auth login
 ```
 
-Abre o navegador, completa o fluxo PKCE e salva tokens em
-`~/.config/chessclub/oauth_token.json`. Tokens se renovam automaticamente.
+Opens the browser, completes the PKCE flow, and saves tokens to
+`~/.config/chessclub/oauth_token.json`. Tokens refresh automatically.
 
-### Status das credenciais
+> **Note:** requires `CHESSCOM_CLIENT_ID` set in the environment. A Chess.com
+> developer application approval is pending.
+
+### Credential status
 
 ```
 $ chessclub auth status
 
-OAuth token  : não configurado
-Cookie auth  : ✓ ativo
+OAuth token  : not configured
+Cookie auth  : ✓ active
   ACCESS_TOKEN : ****...abcd
   PHPSESSID    : ****...ef12
 ```
 
-### Limpar credenciais
+### Clear credentials
 
 ```
 $ chessclub auth clear
-Credenciais removidas.
+Credentials removed.
 ```
 
 ---
 
-## Comandos de Clube
+## Club Commands
 
-Todos os comandos de clube aceitam `--output json` ou `--output csv` para
-integração com outras ferramentas.
+All club commands accept `--output json` or `--output csv` for integration
+with other tools.
 
 ### `chessclub club stats <slug>`
 
-Exibe informações gerais do clube: nome, membros, data de criação, eventos
-realizados e descrição.
+Displays general club information: name (with country flag), member count,
+creation date, events played, and description.
 
 ```
 $ chessclub club stats clube-de-xadrez-de-jundiai
@@ -97,17 +100,17 @@ $ chessclub club stats clube-de-xadrez-de-jundiai
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │                    🇧🇷 Clube de Xadrez de Jundiaí                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-  752 Membros  |  Criado em 15/02/2022  |  141 Eventos
+  752 Members  |  Created on 15/02/2022  |  141 Events
 
-Bem-vindo(a) ao Clube de Xadrez de Jundiaí! Somos um clube tradicional
-localizado em Jundiaí, SP. Promovemos torneios mensais, aulas e eventos
-para jogadores de todos os níveis.
+Welcome to Clube de Xadrez de Jundiaí! We are a traditional club located in
+Jundiaí, SP. We host monthly tournaments, classes, and events for players of
+all levels.
 ```
 
-> **Nota:** "Eventos" requer autenticação (conta os torneios internos).
-> Sem credenciais, a linha aparece sem o campo de eventos.
+> **Note:** the event count requires authentication (counts internal
+> tournaments). Without credentials, that field is omitted from the line.
 
-**Saída JSON:**
+**JSON output:**
 
 ```
 $ chessclub club stats clube-de-xadrez-de-jundiai --output json
@@ -116,7 +119,7 @@ $ chessclub club stats clube-de-xadrez-de-jundiai --output json
   "id": "clube-de-xadrez-de-jundiai",
   "provider_id": "352057",
   "name": "Clube de Xadrez de Jundiaí",
-  "description": "<p>Bem-vindo(a)...</p>",
+  "description": "<p>Welcome to...</p>",
   "country": "https://api.chess.com/pub/country/BR",
   "url": "https://www.chess.com/club/clube-de-xadrez-de-jundiai",
   "members_count": 752,
@@ -130,7 +133,7 @@ $ chessclub club stats clube-de-xadrez-de-jundiai --output json
 
 ### `chessclub club members <slug>`
 
-Lista todos os membros do clube com tier de atividade e data de entrada.
+Lists all club members with their activity tier and join date.
 
 ```
 $ chessclub club members clube-de-xadrez-de-jundiai
@@ -146,7 +149,7 @@ $ chessclub club members clube-de-xadrez-de-jundiai
  Total: 752 members
 ```
 
-**Com títulos** (uma chamada de API por membro — lento para clubes grandes):
+**With titles** (one API call per member — slow for large clubs):
 
 ```
 $ chessclub club members clube-de-xadrez-de-jundiai --details
@@ -158,7 +161,7 @@ $ chessclub club members clube-de-xadrez-de-jundiai --details
  ...
 ```
 
-**Saída CSV:**
+**CSV output:**
 
 ```
 $ chessclub club members clube-de-xadrez-de-jundiai --output csv
@@ -173,8 +176,8 @@ carlosmendes,,monthly,1674172800
 
 ### `chessclub club tournaments <slug>`
 
-Lista os torneios organizados pelo clube, numerados do mais antigo (#1)
-ao mais recente (#N). Requer autenticação.
+Lists all tournaments organised by the club, numbered oldest-first (`#1`) to
+newest (`#N`). Requires authentication.
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai
@@ -192,7 +195,7 @@ $ chessclub club tournaments clube-de-xadrez-de-jundiai
  Total: 141 tournaments — use --games <#> to view games
 ```
 
-**Com standings de cada torneio:**
+**With standings for each tournament:**
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai --details
@@ -209,7 +212,7 @@ $ chessclub club tournaments clube-de-xadrez-de-jundiai --details
   ...
 ```
 
-**Saída JSON:**
+**JSON output:**
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai --output json
@@ -235,10 +238,10 @@ $ chessclub club tournaments clube-de-xadrez-de-jundiai --output json
 
 ### `chessclub club tournaments <slug> --games <ref>`
 
-Exibe os jogos de um torneio específico, rankeados por acurácia Stockfish.
-`<ref>` pode ser o `#` da listagem, um nome parcial ou o ID exato.
+Shows all games from a specific tournament, ranked by Stockfish accuracy.
+`<ref>` can be the list `#`, a partial name, or an exact ID.
 
-**Por número:**
+**By list number:**
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai --games 141
@@ -256,25 +259,25 @@ Tournament: 26o Torneio XIII de Agosto (ID: 6265185, 2026-02-01–2026-02-28)
  Total: 47 games (32 with accuracy data, 24 participants)
 ```
 
-> **Link:** em terminais compatíveis (Windows Terminal, iTerm2), a coluna
-> `view` é um hyperlink clicável que abre a partida no Chess.com.
+> **Link:** in terminals that support hyperlinks (Windows Terminal, iTerm2),
+> the `view` column is a clickable link that opens the game on Chess.com.
 
-**Por nome parcial:**
+**By partial name:**
 
 ```
-$ chessclub club tournaments clube-de-xadrez-de-jundiai --games "Fevereiro"
+$ chessclub club tournaments clube-de-xadrez-de-jundiai --games "February"
 
 Note: 3 tournaments matched. Using the most recent: 26o Torneio...
 Tournament: ...
 ```
 
-**Por ID exato:**
+**By exact ID:**
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai --games 6265185
 ```
 
-**Saída CSV** (inclui URL da partida):
+**CSV output** (includes game URL):
 
 ```
 $ chessclub club tournaments clube-de-xadrez-de-jundiai --games 141 --output csv
@@ -288,8 +291,8 @@ joaosilva,mariaoliveira,1-0,E20,1738540800,94.5,89.2,91.85,https://www.chess.com
 
 ### `chessclub club games <slug>`
 
-Agrega os jogos dos últimos N torneios do clube, rankeados por acurácia.
-Útil para identificar as partidas de melhor qualidade do clube.
+Aggregates games from the last N club tournaments, ranked by accuracy.
+Useful for identifying the highest-quality games in the club.
 
 ```
 $ chessclub club games clube-de-xadrez-de-jundiai
@@ -303,34 +306,34 @@ $ chessclub club games clube-de-xadrez-de-jundiai
  Total: 231 games (189 with accuracy data)
 ```
 
-**Variar a janela de torneios:**
+**Changing the tournament window:**
 
 ```bash
-# Últimos 10 torneios (padrão: 5)
+# Last 10 tournaments (default: 5)
 chessclub club games clube-de-xadrez-de-jundiai --last-n 10
 
-# Todos os torneios (pode ser muito lento)
+# All tournaments (may be very slow)
 chessclub club games clube-de-xadrez-de-jundiai --last-n 0
 ```
 
 ---
 
-## Cache em disco
+## Disk Cache
 
-Respostas de API são armazenadas em `~/.cache/chessclub/` para evitar
-chamadas repetidas. Os TTLs atuais são:
+API responses are stored in `~/.cache/chessclub/` to avoid repeated network
+calls. Current TTLs:
 
-| Endpoint | TTL | Justificativa |
+| Endpoint | TTL | Rationale |
 |---|---|---|
-| Arquivos de jogos — mês passado | **30 dias** | Histórico imutável |
-| Arquivos de jogos — mês atual | **1 hora** | Rodadas ocorrem em horas |
-| Perfil do jogador | **24 horas** | Rating atualizado no máximo 1×/dia |
-| Lista de membros do clube | **1 hora** | Entradas/saídas são raras |
-| Info do clube | **24 horas** | Nome/descrição quase nunca muda |
-| Leaderboard de torneio | **7 dias** | Torneio encerrado é imutável |
-| Lista de torneios do clube | **30 minutos** | Novos torneios aparecem semanalmente |
+| Game archives — past months | **30 days** | Historical archives are immutable |
+| Game archives — current month | **1 hour** | Rounds happen within hours |
+| Player profile | **24 hours** | Rating updated at most once per day |
+| Club member list | **1 hour** | Members join or leave infrequently |
+| Club info | **24 hours** | Name and description almost never change |
+| Tournament leaderboard | **7 days** | Finished tournament results are immutable |
+| Club tournament list | **30 minutes** | New tournaments appear at most weekly |
 
-**Limpar o cache:**
+**Clear the cache:**
 
 ```bash
 rm -rf ~/.cache/chessclub/
@@ -338,25 +341,25 @@ rm -rf ~/.cache/chessclub/
 
 ---
 
-## Uso como biblioteca Python
+## Python Library Usage
 
-O `chessclub` pode ser usado diretamente como pacote Python, sem a CLI.
+`chessclub` can be used directly as a Python package, without the CLI.
 
-### Setup mínimo
+### Minimal setup
 
 ```python
 from chessclub.providers.chesscom.auth import ChessComCookieAuth
 from chessclub.providers.chesscom.client import ChessComClient
 from chessclub.services.club_service import ClubService
 
-auth = ChessComCookieAuth()          # lê ~/.config/chessclub/credentials.json
-client = ChessComClient("meu-app/1.0", auth=auth)
+auth = ChessComCookieAuth()          # reads ~/.config/chessclub/credentials.json
+client = ChessComClient("my-app/1.0", auth=auth)
 service = ClubService(client)
 ```
 
-### Exemplos
+### Examples
 
-**Info do clube:**
+**Club info:**
 
 ```python
 club = service.get_club("clube-de-xadrez-de-jundiai")
@@ -365,7 +368,7 @@ print(club.members_count)  # 752
 print(club.created_at)     # 1644940255 (Unix timestamp)
 ```
 
-**Membros:**
+**Members:**
 
 ```python
 members = service.get_club_members("clube-de-xadrez-de-jundiai")
@@ -373,21 +376,21 @@ for m in members:
     print(m.username, m.activity, m.joined_at)
 ```
 
-**Torneios:**
+**Tournaments:**
 
 ```python
 tournaments = service.get_club_tournaments("clube-de-xadrez-de-jundiai")
-# ordenados por end_date ascending
+# sorted by end_date ascending
 for t in sorted(tournaments, key=lambda t: t.end_date or 0):
-    print(f"#{t.id}  {t.name}  ({t.player_count} jogadores)")
+    print(f"#{t.id}  {t.name}  ({t.player_count} players)")
 ```
 
-**Jogos de um torneio:**
+**Games from a tournament:**
 
 ```python
-# Buscar por nome parcial
+# Find by partial name
 matches = service.find_tournaments_by_name_or_id(
-    "clube-de-xadrez-de-jundiai", "Fevereiro 2026"
+    "clube-de-xadrez-de-jundiai", "February 2026"
 )
 tournament = matches[0]
 
@@ -396,7 +399,7 @@ for g in games:
     print(f"{g.white} vs {g.black}  {g.result}  avg={g.avg_accuracy:.1f}%  {g.url}")
 ```
 
-**Resultados (standings):**
+**Standings:**
 
 ```python
 results = service.get_tournament_results(
@@ -406,48 +409,48 @@ for r in results:
     print(f"#{r.position}  {r.player}  {r.score} pts")
 ```
 
-**Sem autenticação** (apenas endpoints públicos):
+**Without authentication** (public endpoints only):
 
 ```python
-client = ChessComClient("meu-app/1.0")   # sem auth
-club = service.get_club("clube-de-xadrez-de-jundiai")    # ✓ público
-members = service.get_club_members("clube-de-xadrez-de-jundiai")  # ✓ público
-tournaments = service.get_club_tournaments(...)           # ✗ requer auth
+client = ChessComClient("my-app/1.0")   # no auth
+club = service.get_club("clube-de-xadrez-de-jundiai")    # ✓ public
+members = service.get_club_members("clube-de-xadrez-de-jundiai")  # ✓ public
+tournaments = service.get_club_tournaments(...)           # ✗ requires auth
 ```
 
-### Tratamento de erros
+### Error handling
 
 ```python
 from chessclub.core.exceptions import AuthenticationRequiredError, ProviderError
 
 try:
-    tournaments = service.get_club_tournaments("meu-clube")
+    tournaments = service.get_club_tournaments("my-club")
 except AuthenticationRequiredError:
-    print("Configure credenciais com: chessclub auth setup")
+    print("Configure credentials with: chessclub auth setup")
 except ProviderError as e:
-    print(f"Erro da plataforma: {e}")
+    print(f"Platform error: {e}")
 ```
 
 ---
 
-## Formatos de saída
+## Output Formats
 
-Todos os comandos de listagem aceitam `--output`:
+All listing commands accept `--output`:
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| (omitida) | Tabela Rich colorida no terminal |
-| `--output json` | JSON formatado, adequado para `jq` e scripts |
-| `--output csv` | CSV com cabeçalho, adequado para Excel/pandas |
+| (omitted) | Coloured Rich table in the terminal |
+| `--output json` | Formatted JSON, suitable for `jq` and scripts |
+| `--output csv` | CSV with header, suitable for Excel / pandas |
 
-**Exemplo com `jq`:**
+**Example with `jq`:**
 
 ```bash
-# Nomes dos torneios mais recentes
+# Names of the most recent tournaments
 chessclub club tournaments clube-de-xadrez-de-jundiai --output json \
   | jq '[-3:][].name'
 
-# Média de acurácia das partidas do último torneio
+# Average accuracy of games in the last tournament
 chessclub club tournaments clube-de-xadrez-de-jundiai --games 141 --output json \
   | jq '[.[].avg_accuracy | select(. != null)] | add/length'
 ```
