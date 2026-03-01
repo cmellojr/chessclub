@@ -104,6 +104,18 @@ def _fmt_date(timestamp: int | None) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
 
 
+def _fmt_acc(val: float | None) -> str:
+    """Format a Stockfish accuracy value as a 1-decimal string.
+
+    Args:
+        val: Accuracy (0–100), or ``None``.
+
+    Returns:
+        A formatted string like ``"87.3"``, or ``"—"`` when absent.
+    """
+    return f"{val:.1f}" if val is not None else "—"
+
+
 def _to_csv(rows: list[dict], fieldnames: list[str]) -> str:
     """Serialise a list of dicts to a CSV string.
 
@@ -479,8 +491,23 @@ def tournaments(
             "Requires authentication. Not supported with --output csv."
         ),
     ),
+    games: str | None = typer.Option(
+        None,
+        "--games",
+        "-g",
+        help=(
+            "Show games for a tournament. "
+            "Accepts the # from the list, a partial name, or an exact ID."
+        ),
+    ),
 ):
-    """List tournaments organised by the club."""
+    """List tournaments organised by the club.
+
+    Use --games to show all games for a specific tournament.  Pass the #
+    shown in the list, a partial name, or the exact tournament ID.
+
+    Use --details to show per-player standings for each tournament.
+    """
     try:
         service = _get_service()
         data = service.get_club_tournaments(slug)
@@ -488,6 +515,131 @@ def tournaments(
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 
+    # ------------------------------------------------------------------
+    # --games branch: resolve tournament and show its games
+    # ------------------------------------------------------------------
+    if games is not None:
+        data.sort(key=lambda t: t.end_date or 0, reverse=False)
+
+        tournament = None
+        if games.strip().isdigit():
+            idx = int(games.strip())
+            if 1 <= idx <= len(data):
+                tournament = data[idx - 1]
+
+        if tournament is None:
+            matches = service.find_tournaments_by_name_or_id(slug, games)
+            if not matches:
+                console.print(
+                    f"[red]Error:[/red] No tournament matching "
+                    f"[bold]{games!r}[/bold].",
+                    highlight=False,
+                )
+                raise typer.Exit(1)
+            if len(matches) > 1:
+                console.print(
+                    f"[yellow]Note:[/yellow] {len(matches)} tournaments "
+                    f"matched. Using the most recent: "
+                    f"[bold]{matches[0].name}[/bold]."
+                )
+            tournament = matches[0]
+
+        console.print(
+            f"[dim]Tournament: {tournament.name} "
+            f"(ID: {tournament.id}, "
+            f"{_fmt_date(tournament.start_date)}–"
+            f"{_fmt_date(tournament.end_date)})[/dim]"
+        )
+
+        try:
+            with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
+                t_results = service.get_tournament_results(
+                    tournament.id, tournament_type=tournament.tournament_type
+                )
+                game_data = service.get_tournament_games(tournament)
+        except AuthenticationRequiredError as e:
+            console.print(f"[red]Error:[/red] {e}", highlight=False)
+            raise typer.Exit(1)
+
+        participant_count = len({r.player for r in t_results})
+        with_accuracy = sum(1 for g in game_data if g.avg_accuracy is not None)
+
+        if output == OutputFormat.json:
+            rows = []
+            for g in game_data:
+                d = asdict(g)
+                d["avg_accuracy"] = g.avg_accuracy
+                rows.append(d)
+            print(json.dumps(rows, indent=2))
+
+        elif output == OutputFormat.csv:
+            _gfields = [
+                "white", "black", "result", "opening_eco", "played_at",
+                "white_accuracy", "black_accuracy", "avg_accuracy", "url",
+            ]
+            rows = []
+            for g in game_data:
+                d = asdict(g)
+                d["avg_accuracy"] = g.avg_accuracy
+                rows.append(d)
+            print(_to_csv(rows, _gfields), end="")
+
+        else:
+            gtable = Table(title=tournament.name, show_lines=False)
+            gtable.add_column("White", style="cyan")
+            gtable.add_column("W%", justify="right")
+            gtable.add_column("Black", style="cyan")
+            gtable.add_column("B%", justify="right")
+            gtable.add_column("Avg%", justify="right", style="bold")
+            gtable.add_column("Result", justify="center")
+            gtable.add_column("Date", justify="right")
+            gtable.add_column("Link", no_wrap=True)
+
+            for g in game_data:
+                link = f"[link={g.url}]view[/link]" if g.url else "—"
+                gtable.add_row(
+                    g.white,
+                    _fmt_acc(g.white_accuracy),
+                    g.black,
+                    _fmt_acc(g.black_accuracy),
+                    _fmt_acc(g.avg_accuracy),
+                    g.result,
+                    _fmt_date(g.played_at),
+                    link,
+                )
+
+            console.print(gtable)
+            using_member_fallback = participant_count == 0 and len(game_data) > 0
+            participants_label = (
+                "club members (leaderboard unavailable)"
+                if using_member_fallback
+                else f"{participant_count} participants"
+            )
+            console.print(
+                f"[dim]Total: {len(game_data)} games "
+                f"({with_accuracy} with accuracy data, "
+                f"{participants_label})[/]"
+            )
+            if not game_data:
+                if participant_count == 0:
+                    console.print(
+                        "[yellow]Tip:[/yellow] Leaderboard returned 0 "
+                        "participants and no club members could be fetched. "
+                        "Check credentials "
+                        "([bold]chessclub auth setup[/bold])."
+                    )
+                else:
+                    console.print(
+                        f"[yellow]Tip:[/yellow] {participant_count} "
+                        "participants found but no games matched the "
+                        "tournament time window. "
+                        "This is a known Chess.com API issue."
+                    )
+        return
+
+    # ------------------------------------------------------------------
+    # Default: list tournaments
+    # ------------------------------------------------------------------
     if output == OutputFormat.json:
         rows = [asdict(t) for t in data]
         if details:
@@ -511,32 +663,27 @@ def tournaments(
                 "--output csv. Showing summary only."
             )
         _fields = [
-            "id",
-            "name",
-            "tournament_type",
-            "status",
-            "start_date",
-            "end_date",
-            "player_count",
-            "winner_username",
-            "winner_score",
+            "id", "name", "tournament_type", "status",
+            "start_date", "end_date", "player_count",
+            "winner_username", "winner_score",
         ]
         print(_to_csv([asdict(t) for t in data], _fields), end="")
 
     else:
-        # Default: table output
-        data.sort(key=lambda t: t.end_date or 0, reverse=True)
+        data.sort(key=lambda t: t.end_date or 0, reverse=False)
 
         table = Table(title=f"Tournaments — {slug}", show_lines=False)
+        table.add_column("#", justify="right", style="dim", width=4)
         table.add_column("Name", style="cyan", no_wrap=False)
         table.add_column("Type", style="dim")
         table.add_column("Date", justify="right")
         table.add_column("Players", justify="right")
         table.add_column("Winner pts", justify="right")
 
-        for t in data:
+        for i, t in enumerate(data, 1):
             score = str(t.winner_score) if t.winner_score is not None else "—"
             table.add_row(
+                str(i),
                 t.name.lstrip(),
                 t.tournament_type,
                 _fmt_date(t.start_date),
@@ -545,7 +692,10 @@ def tournaments(
             )
 
         console.print(table)
-        console.print(f"[dim]Total: {len(data)} tournaments[/]")
+        console.print(
+            f"[dim]Total: {len(data)} tournaments — "
+            "use [bold]--games <#>[/bold] to view games[/]"
+        )
 
         if details:
             for t in data:
@@ -579,211 +729,6 @@ def tournaments(
                         str(r.rating) if r.rating is not None else "—",
                     )
                 console.print(standings)
-
-
-@club_app.command(name="tournament-games")
-def tournament_games(
-    slug: str,
-    name_or_id: str | None = typer.Argument(
-        None,
-        help=(
-            "Tournament name (partial, case-insensitive) or exact numeric ID. "
-            "Omit to pick interactively from a numbered list."
-        ),
-    ),
-    output: OutputFormat = typer.Option(
-        OutputFormat.table, "--output", "-o", help="Output format."
-    ),
-):
-    """List all games from a specific tournament, ranked by Stockfish accuracy.
-
-    When NAME_OR_ID is omitted, a numbered list of tournaments is shown and
-    you are prompted to choose one.  You can also pass a partial name or the
-    exact numeric tournament ID directly.
-
-    Accuracy scores require Chess.com Game Review (a Chess.com premium
-    feature); games without review appear at the end with '—' in accuracy
-    columns.
-    """
-    try:
-        service = _get_service()
-    except AuthenticationRequiredError as e:
-        console.print(f"[red]Error:[/red] {e}", highlight=False)
-        raise typer.Exit(1)
-
-    def _fmt_acc(val: float | None) -> str:
-        return f"{val:.1f}" if val is not None else "—"
-
-    # ------------------------------------------------------------------
-    # Resolve which tournament to use
-    # ------------------------------------------------------------------
-    if name_or_id is None:
-        try:
-            with console.status(
-                "[dim]Fetching tournament list…[/dim]", spinner="dots"
-            ):
-                all_tournaments = service.get_club_tournaments(slug)
-        except AuthenticationRequiredError as e:
-            console.print(f"[red]Error:[/red] {e}", highlight=False)
-            raise typer.Exit(1)
-
-        all_tournaments.sort(key=lambda t: t.end_date or 0, reverse=True)
-
-        pick_table = Table(show_header=True, show_lines=False, box=None)
-        pick_table.add_column("#", justify="right", style="dim", width=4)
-        pick_table.add_column("Name", style="cyan")
-        pick_table.add_column("Type", style="dim", width=7)
-        pick_table.add_column("Date", justify="right", width=11)
-        pick_table.add_column("Players", justify="right", width=7)
-        for i, t in enumerate(all_tournaments, 1):
-            pick_table.add_row(
-                str(i),
-                t.name.lstrip(),
-                t.tournament_type,
-                _fmt_date(t.start_date),
-                str(t.player_count),
-            )
-        console.print(pick_table)
-
-        idx = typer.prompt("Choose tournament number", type=int)
-        if not 1 <= idx <= len(all_tournaments):
-            console.print(
-                f"[red]Error:[/red] Invalid number — must be "
-                f"1–{len(all_tournaments)}."
-            )
-            raise typer.Exit(1)
-
-        tournament = all_tournaments[idx - 1]
-    else:
-        try:
-            with console.status(
-                "[dim]Looking up tournament…[/dim]", spinner="dots"
-            ):
-                matches = service.find_tournaments_by_name_or_id(
-                    slug, name_or_id
-                )
-        except AuthenticationRequiredError as e:
-            console.print(f"[red]Error:[/red] {e}", highlight=False)
-            raise typer.Exit(1)
-
-        if not matches:
-            console.print(
-                f"[red]Error:[/red] No tournament matching "
-                f"[bold]{name_or_id!r}[/bold].",
-                highlight=False,
-            )
-            console.print(
-                "[dim]Omit the argument to pick interactively.[/dim]"
-            )
-            raise typer.Exit(1)
-
-        tournament = matches[0]
-        if len(matches) > 1:
-            console.print(
-                f"[yellow]Note:[/yellow] {len(matches)} tournaments matched. "
-                f"Using the most recent: [bold]{tournament.name}[/bold] "
-                f"(ID: {tournament.id})"
-            )
-
-    console.print(
-        f"[dim]Tournament: {tournament.name} "
-        f"(ID: {tournament.id}, "
-        f"{_fmt_date(tournament.start_date)}–{_fmt_date(tournament.end_date)})"
-        "[/dim]"
-    )
-
-    # ------------------------------------------------------------------
-    # Fetch games
-    # ------------------------------------------------------------------
-    try:
-        with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
-            results = service.get_tournament_results(
-                tournament.id, tournament_type=tournament.tournament_type
-            )
-            data = service.get_tournament_games(tournament)
-    except AuthenticationRequiredError as e:
-        console.print(f"[red]Error:[/red] {e}", highlight=False)
-        raise typer.Exit(1)
-
-    participant_count = len({r.player for r in results})
-    with_accuracy = sum(1 for g in data if g.avg_accuracy is not None)
-
-    if output == OutputFormat.json:
-        rows = []
-        for g in data:
-            d = asdict(g)
-            d["avg_accuracy"] = g.avg_accuracy
-            rows.append(d)
-        print(json.dumps(rows, indent=2))
-
-    elif output == OutputFormat.csv:
-        _fields = [
-            "white",
-            "black",
-            "result",
-            "opening_eco",
-            "played_at",
-            "white_accuracy",
-            "black_accuracy",
-            "avg_accuracy",
-            "url",
-        ]
-        rows = []
-        for g in data:
-            d = asdict(g)
-            d["avg_accuracy"] = g.avg_accuracy
-            rows.append(d)
-        print(_to_csv(rows, _fields), end="")
-
-    else:
-        table = Table(title=f"{tournament.name}", show_lines=False)
-        table.add_column("White", style="cyan")
-        table.add_column("W%", justify="right")
-        table.add_column("Black", style="cyan")
-        table.add_column("B%", justify="right")
-        table.add_column("Avg%", justify="right", style="bold")
-        table.add_column("Result", justify="center")
-        table.add_column("Date", justify="right")
-        table.add_column("Link", no_wrap=True)
-
-        for g in data:
-            link = f"[link={g.url}]view[/link]" if g.url else "—"
-            table.add_row(
-                g.white,
-                _fmt_acc(g.white_accuracy),
-                g.black,
-                _fmt_acc(g.black_accuracy),
-                _fmt_acc(g.avg_accuracy),
-                g.result,
-                _fmt_date(g.played_at),
-                link,
-            )
-
-        console.print(table)
-        using_member_fallback = participant_count == 0 and len(data) > 0
-        if using_member_fallback:
-            participants_label = "club members (leaderboard unavailable)"
-        else:
-            participants_label = f"{participant_count} participants"
-        console.print(
-            f"[dim]Total: {len(data)} games "
-            f"({with_accuracy} with accuracy data, "
-            f"{participants_label})[/]"
-        )
-        if not data:
-            if participant_count == 0:
-                console.print(
-                    "[yellow]Tip:[/yellow] Leaderboard returned 0 participants "
-                    "and no club members could be fetched. "
-                    "Check that your credentials are valid "
-                    "([bold]chessclub auth setup[/bold])."
-                )
-            else:
-                console.print(
-                    f"[yellow]Tip:[/yellow] {participant_count} participants "
-                    "found but no games matched the tournament time window. "
-                    "This is a known Chess.com API issue — please report it."
-                )
 
 
 @club_app.command()

@@ -236,3 +236,32 @@ def test_tournaments_details_json_includes_results(
     data = json.loads(result.output)
     assert "results" in data[0]
     assert data[0]["results"][0]["player"] == "alice"
+
+
+def test_tournaments_games_flag_by_name(
+    mock_club, mock_tournaments, mock_results
+):
+    svc = _make_service(mock_club, [], mock_tournaments, mock_results)
+    svc.get_tournament_games.return_value = []
+    svc.find_tournaments_by_name_or_id.return_value = [mock_tournaments[0]]
+    with patch("chessclub_cli.main._get_service", return_value=svc):
+        result = runner.invoke(
+            app,
+            ["club", "tournaments", "test-club", "--games", "Spring Swiss"],
+        )
+    assert result.exit_code == 0
+    svc.get_tournament_games.assert_called_once()
+
+
+def test_tournaments_games_flag_by_number(
+    mock_club, mock_tournaments, mock_results
+):
+    svc = _make_service(mock_club, [], mock_tournaments, mock_results)
+    svc.get_tournament_games.return_value = []
+    with patch("chessclub_cli.main._get_service", return_value=svc):
+        result = runner.invoke(
+            app,
+            ["club", "tournaments", "test-club", "--games", "1"],
+        )
+    assert result.exit_code == 0
+    svc.get_tournament_games.assert_called_once()
