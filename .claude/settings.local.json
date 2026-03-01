@@ -3,7 +3,8 @@
     "allow": [
       "WebFetch(domain:www.chess.com)",
       "Bash(curl:*)",
-      "WebFetch(domain:google.github.io)"
+      "WebFetch(domain:google.github.io)",
+      "Bash(python:*)"
     ]
   }
 }

@@ -23,6 +23,18 @@ class Club:
     country: str | None
     url: str | None
 
+    members_count: int | None = None
+    """Total number of club members."""
+
+    created_at: int | None = None
+    """Unix timestamp of when the club was created."""
+
+    location: str | None = None
+    """Physical location or address of the club."""
+
+    matches_count: int | None = None
+    """Number of finished team matches (events played)."""
+
 
 # ----------------------
 # Member
@@ -133,6 +145,9 @@ class Game:
 
     tournament_id: str | None = None
     """Provider-specific ID of the tournament this game belongs to."""
+
+    url: str | None = None
+    """Direct URL to the game on the provider's website."""
 
     @property
     def avg_accuracy(self) -> float | None:

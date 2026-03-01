@@ -10,11 +10,13 @@ import csv
 import io
 import json
 import os
+import re
 import sys
+import textwrap
 import time
 import webbrowser
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 # Ensure UTF-8 output on Windows where stdout may default to cp1252.
@@ -26,7 +28,9 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import requests
 import typer
+from rich.align import Align
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from chessclub.auth import credentials as creds_store
@@ -100,6 +104,18 @@ def _fmt_date(timestamp: int | None) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
 
 
+def _fmt_acc(val: float | None) -> str:
+    """Format a Stockfish accuracy value as a 1-decimal string.
+
+    Args:
+        val: Accuracy (0–100), or ``None``.
+
+    Returns:
+        A formatted string like ``"87.3"``, or ``"—"`` when absent.
+    """
+    return f"{val:.1f}" if val is not None else "—"
+
+
 def _to_csv(rows: list[dict], fieldnames: list[str]) -> str:
     """Serialise a list of dicts to a CSV string.
 
@@ -140,19 +156,18 @@ def setup():
 
     console.print("\n[bold]How to retrieve cookies after login:[/bold]")
     console.print(
-        "  1. With Chess.com open, press [cyan]F12[/cyan] to open DevTools"
+        "  1. After logging in, click the [cyan]chessclub Cookie Helper[/cyan] "
+        "icon in the browser toolbar (Chess.com knight icon)."
     )
     console.print(
-        "  2. Go to the [cyan]Application[/cyan] tab (Chrome) "
-        "or [cyan]Storage[/cyan] (Firefox)"
+        "  2. The extension shows [cyan]ACCESS_TOKEN[/cyan] and "
+        "[cyan]PHPSESSID[/cyan] — copy each value and paste below.\n"
     )
     console.print(
-        "  3. In the sidebar, click "
-        "[cyan]Cookies → https://www.chess.com[/cyan]"
-    )
-    console.print(
-        "  4. Copy the value of "
-        "[cyan]ACCESS_TOKEN[/cyan] and [cyan]PHPSESSID[/cyan]\n"
+        "[dim]No extension? Install it from "
+        "[bold]tools/chessclub-cookie-helper/[/bold] "
+        "(load unpacked in chrome://extensions). "
+        "Or open DevTools → Application → Cookies → https://www.chess.com.[/dim]\n"
     )
 
     access_token = typer.prompt("Paste the ACCESS_TOKEN value", hide_input=True)
@@ -300,18 +315,85 @@ def stats(
     service = _get_service()
     club = service.get_club(slug)
 
+    # Tournament count requires auth; omit silently if unavailable.
+    tournaments_count: int | None = None
+    try:
+        tournaments_count = len(service.get_club_tournaments(slug))
+    except (AuthenticationRequiredError, Exception):
+        pass
+
+    club.matches_count = tournaments_count
+
     if output == OutputFormat.json:
         print(json.dumps(asdict(club), indent=2))
     elif output == OutputFormat.csv:
         print(
             _to_csv(
                 [asdict(club)],
-                ["id", "name", "description", "country", "url"],
+                [
+                    "id",
+                    "name",
+                    "description",
+                    "country",
+                    "url",
+                    "members_count",
+                    "created_at",
+                    "location",
+                    "matches_count",
+                ],
             ),
             end="",
         )
     else:
-        console.print(club.name)
+        # Country URL → flag emoji (e.g. ".../country/BR" → "🇧🇷")
+        def _flag(country_url: str | None) -> str:
+            if not country_url:
+                return ""
+            code = country_url.rstrip("/").split("/")[-1].upper()
+            if len(code) != 2 or not code.isalpha():
+                return ""
+            return "".join(
+                chr(0x1F1E0 + ord(c) - ord("A")) for c in code
+            )
+
+        # Strip HTML tags; convert <br> to newline first
+        def _strip_html(html: str | None) -> str:
+            if not html:
+                return ""
+            text = re.sub(r"<br\s*/?>", "\n", html, flags=re.IGNORECASE)
+            text = re.sub(r"<[^>]+>", "", text)
+            return text.strip()
+
+        _WIDTH = 80
+
+        flag = _flag(club.country)
+        title = f"{flag} {club.name}" if flag else club.name
+        console.print(
+            Panel(
+                Align.center(f"[bold]{title}[/bold]"),
+                padding=(0, 2),
+                width=_WIDTH,
+            )
+        )
+
+        stats_parts: list[str] = []
+        if club.members_count is not None:
+            stats_parts.append(f"[cyan]{club.members_count}[/cyan] Membros")
+        if club.created_at is not None:
+            dt = datetime.fromtimestamp(club.created_at, tz=timezone.utc)
+            stats_parts.append(
+                f"Criado em [cyan]{dt.strftime('%d/%m/%Y')}[/cyan]"
+            )
+        if club.matches_count is not None:
+            stats_parts.append(f"[cyan]{club.matches_count}[/cyan] Eventos")
+        if stats_parts:
+            console.print("  " + "  |  ".join(stats_parts) + "\n")
+
+        description = _strip_html(club.description)
+        if description:
+            for line in description.splitlines():
+                wrapped = textwrap.fill(line, width=_WIDTH) if line else ""
+                console.print(wrapped)
 
 
 _ACTIVITY_LABEL: dict[str, str] = {
@@ -409,8 +491,23 @@ def tournaments(
             "Requires authentication. Not supported with --output csv."
         ),
     ),
+    games: str | None = typer.Option(
+        None,
+        "--games",
+        "-g",
+        help=(
+            "Show games for a tournament. "
+            "Accepts the # from the list, a partial name, or an exact ID."
+        ),
+    ),
 ):
-    """List tournaments organised by the club."""
+    """List tournaments organised by the club.
+
+    Use --games to show all games for a specific tournament.  Pass the #
+    shown in the list, a partial name, or the exact tournament ID.
+
+    Use --details to show per-player standings for each tournament.
+    """
     try:
         service = _get_service()
         data = service.get_club_tournaments(slug)
@@ -418,6 +515,131 @@ def tournaments(
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
 
+    # ------------------------------------------------------------------
+    # --games branch: resolve tournament and show its games
+    # ------------------------------------------------------------------
+    if games is not None:
+        data.sort(key=lambda t: t.end_date or 0, reverse=False)
+
+        tournament = None
+        if games.strip().isdigit():
+            idx = int(games.strip())
+            if 1 <= idx <= len(data):
+                tournament = data[idx - 1]
+
+        if tournament is None:
+            matches = service.find_tournaments_by_name_or_id(slug, games)
+            if not matches:
+                console.print(
+                    f"[red]Error:[/red] No tournament matching "
+                    f"[bold]{games!r}[/bold].",
+                    highlight=False,
+                )
+                raise typer.Exit(1)
+            if len(matches) > 1:
+                console.print(
+                    f"[yellow]Note:[/yellow] {len(matches)} tournaments "
+                    f"matched. Using the most recent: "
+                    f"[bold]{matches[0].name}[/bold]."
+                )
+            tournament = matches[0]
+
+        console.print(
+            f"[dim]Tournament: {tournament.name} "
+            f"(ID: {tournament.id}, "
+            f"{_fmt_date(tournament.start_date)}–"
+            f"{_fmt_date(tournament.end_date)})[/dim]"
+        )
+
+        try:
+            with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
+                t_results = service.get_tournament_results(
+                    tournament.id, tournament_type=tournament.tournament_type
+                )
+                game_data = service.get_tournament_games(tournament)
+        except AuthenticationRequiredError as e:
+            console.print(f"[red]Error:[/red] {e}", highlight=False)
+            raise typer.Exit(1)
+
+        participant_count = len({r.player for r in t_results})
+        with_accuracy = sum(1 for g in game_data if g.avg_accuracy is not None)
+
+        if output == OutputFormat.json:
+            rows = []
+            for g in game_data:
+                d = asdict(g)
+                d["avg_accuracy"] = g.avg_accuracy
+                rows.append(d)
+            print(json.dumps(rows, indent=2))
+
+        elif output == OutputFormat.csv:
+            _gfields = [
+                "white", "black", "result", "opening_eco", "played_at",
+                "white_accuracy", "black_accuracy", "avg_accuracy", "url",
+            ]
+            rows = []
+            for g in game_data:
+                d = asdict(g)
+                d["avg_accuracy"] = g.avg_accuracy
+                rows.append(d)
+            print(_to_csv(rows, _gfields), end="")
+
+        else:
+            gtable = Table(title=tournament.name, show_lines=False)
+            gtable.add_column("White", style="cyan")
+            gtable.add_column("W%", justify="right")
+            gtable.add_column("Black", style="cyan")
+            gtable.add_column("B%", justify="right")
+            gtable.add_column("Avg%", justify="right", style="bold")
+            gtable.add_column("Result", justify="center")
+            gtable.add_column("Date", justify="right")
+            gtable.add_column("Link", no_wrap=True)
+
+            for g in game_data:
+                link = f"[link={g.url}]view[/link]" if g.url else "—"
+                gtable.add_row(
+                    g.white,
+                    _fmt_acc(g.white_accuracy),
+                    g.black,
+                    _fmt_acc(g.black_accuracy),
+                    _fmt_acc(g.avg_accuracy),
+                    g.result,
+                    _fmt_date(g.played_at),
+                    link,
+                )
+
+            console.print(gtable)
+            using_member_fallback = participant_count == 0 and len(game_data) > 0
+            participants_label = (
+                "club members (leaderboard unavailable)"
+                if using_member_fallback
+                else f"{participant_count} participants"
+            )
+            console.print(
+                f"[dim]Total: {len(game_data)} games "
+                f"({with_accuracy} with accuracy data, "
+                f"{participants_label})[/]"
+            )
+            if not game_data:
+                if participant_count == 0:
+                    console.print(
+                        "[yellow]Tip:[/yellow] Leaderboard returned 0 "
+                        "participants and no club members could be fetched. "
+                        "Check credentials "
+                        "([bold]chessclub auth setup[/bold])."
+                    )
+                else:
+                    console.print(
+                        f"[yellow]Tip:[/yellow] {participant_count} "
+                        "participants found but no games matched the "
+                        "tournament time window. "
+                        "This is a known Chess.com API issue."
+                    )
+        return
+
+    # ------------------------------------------------------------------
+    # Default: list tournaments
+    # ------------------------------------------------------------------
     if output == OutputFormat.json:
         rows = [asdict(t) for t in data]
         if details:
@@ -441,31 +663,28 @@ def tournaments(
                 "--output csv. Showing summary only."
             )
         _fields = [
-            "id",
-            "name",
-            "tournament_type",
-            "status",
-            "start_date",
-            "end_date",
-            "player_count",
-            "winner_username",
-            "winner_score",
+            "id", "name", "tournament_type", "status",
+            "start_date", "end_date", "player_count",
+            "winner_username", "winner_score",
         ]
         print(_to_csv([asdict(t) for t in data], _fields), end="")
 
     else:
-        # Default: table output
+        data.sort(key=lambda t: t.end_date or 0, reverse=False)
+
         table = Table(title=f"Tournaments — {slug}", show_lines=False)
+        table.add_column("#", justify="right", style="dim", width=4)
         table.add_column("Name", style="cyan", no_wrap=False)
         table.add_column("Type", style="dim")
         table.add_column("Date", justify="right")
         table.add_column("Players", justify="right")
         table.add_column("Winner pts", justify="right")
 
-        for t in data:
+        for i, t in enumerate(data, 1):
             score = str(t.winner_score) if t.winner_score is not None else "—"
             table.add_row(
-                t.name,
+                str(i),
+                t.name.lstrip(),
                 t.tournament_type,
                 _fmt_date(t.start_date),
                 str(t.player_count),
@@ -473,7 +692,10 @@ def tournaments(
             )
 
         console.print(table)
-        console.print(f"[dim]Total: {len(data)} tournaments[/]")
+        console.print(
+            f"[dim]Total: {len(data)} tournaments — "
+            "use [bold]--games <#>[/bold] to view games[/]"
+        )
 
         if details:
             for t in data:
@@ -507,160 +729,6 @@ def tournaments(
                         str(r.rating) if r.rating is not None else "—",
                     )
                 console.print(standings)
-
-
-@club_app.command(name="tournament-games")
-def tournament_games(
-    slug: str,
-    name_or_id: str = typer.Argument(
-        ...,
-        help=(
-            "Tournament name (partial, case-insensitive) or exact numeric ID. "
-            "Run 'chessclub club tournaments <slug>' to list available tournaments."
-        ),
-    ),
-    output: OutputFormat = typer.Option(
-        OutputFormat.table, "--output", "-o", help="Output format."
-    ),
-):
-    """List all games from a specific tournament, ranked by Stockfish accuracy.
-
-    Searches the club's tournament list for a name or ID match, then fetches
-    all games played in that tournament.  If several tournaments match the
-    name, the most recent one is used and a notice is printed.
-
-    Accuracy scores require Chess.com Game Review (a Chess.com premium
-    feature); games without review appear at the end with '—' in accuracy
-    columns.
-    """
-    try:
-        service = _get_service()
-        with console.status(
-            "[dim]Looking up tournament…[/dim]", spinner="dots"
-        ):
-            matches = service.find_tournaments_by_name_or_id(slug, name_or_id)
-    except AuthenticationRequiredError as e:
-        console.print(f"[red]Error:[/red] {e}", highlight=False)
-        raise typer.Exit(1)
-
-    if not matches:
-        console.print(
-            f"[red]Error:[/red] No tournament matching [bold]{name_or_id!r}[/bold].",
-            highlight=False,
-        )
-        console.print(
-            "[dim]Run [bold]chessclub club tournaments "
-            f"{slug}[/bold] to list available tournaments.[/dim]"
-        )
-        raise typer.Exit(1)
-
-    tournament = matches[0]
-    if len(matches) > 1:
-        console.print(
-            f"[yellow]Note:[/yellow] {len(matches)} tournaments matched. "
-            f"Using the most recent: [bold]{tournament.name}[/bold] "
-            f"(ID: {tournament.id})"
-        )
-    else:
-        console.print(
-            f"[dim]Tournament: {tournament.name} "
-            f"(ID: {tournament.id}, "
-            f"{_fmt_date(tournament.start_date)}–{_fmt_date(tournament.end_date)})"
-            "[/dim]"
-        )
-
-    try:
-        with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
-            results = service.get_tournament_results(
-                tournament.id, tournament_type=tournament.tournament_type
-            )
-            data = service.get_tournament_games(tournament)
-    except AuthenticationRequiredError as e:
-        console.print(f"[red]Error:[/red] {e}", highlight=False)
-        raise typer.Exit(1)
-
-    participant_count = len({r.player for r in results})
-    with_accuracy = sum(1 for g in data if g.avg_accuracy is not None)
-
-    def _fmt_acc(val: float | None) -> str:
-        return f"{val:.1f}" if val is not None else "—"
-
-    if output == OutputFormat.json:
-        rows = []
-        for g in data:
-            d = asdict(g)
-            d["avg_accuracy"] = g.avg_accuracy
-            rows.append(d)
-        print(json.dumps(rows, indent=2))
-
-    elif output == OutputFormat.csv:
-        _fields = [
-            "white",
-            "black",
-            "result",
-            "opening_eco",
-            "played_at",
-            "white_accuracy",
-            "black_accuracy",
-            "avg_accuracy",
-        ]
-        rows = []
-        for g in data:
-            d = asdict(g)
-            d["avg_accuracy"] = g.avg_accuracy
-            rows.append(d)
-        print(_to_csv(rows, _fields), end="")
-
-    else:
-        table = Table(
-            title=f"{tournament.name}", show_lines=False
-        )
-        table.add_column("White", style="cyan")
-        table.add_column("W%", justify="right")
-        table.add_column("Black", style="cyan")
-        table.add_column("B%", justify="right")
-        table.add_column("Avg%", justify="right", style="bold")
-        table.add_column("Result", justify="center")
-        table.add_column("Date", justify="right")
-
-        for g in data:
-            table.add_row(
-                g.white,
-                _fmt_acc(g.white_accuracy),
-                g.black,
-                _fmt_acc(g.black_accuracy),
-                _fmt_acc(g.avg_accuracy),
-                g.result,
-                _fmt_date(g.played_at),
-            )
-
-        console.print(table)
-        # When participant_count is 0 but games were found, the provider fell
-        # back to the club member list (leaderboard endpoint unavailable).
-        using_member_fallback = participant_count == 0 and len(data) > 0
-        if using_member_fallback:
-            participants_label = "club members (leaderboard unavailable)"
-        else:
-            participants_label = f"{participant_count} participants"
-        console.print(
-            f"[dim]Total: {len(data)} games "
-            f"({with_accuracy} with accuracy data, "
-            f"{participants_label})[/]"
-        )
-        if not data:
-            if participant_count == 0:
-                console.print(
-                    "[yellow]Tip:[/yellow] Leaderboard returned 0 participants "
-                    "and no club members could be fetched. "
-                    "Check that your credentials are valid "
-                    "([bold]chessclub auth setup[/bold])."
-                )
-            else:
-                console.print(
-                    f"[yellow]Tip:[/yellow] {participant_count} participants "
-                    "found but no games matched the tournament time window. "
-                    "This is a known Chess.com API issue — please report it."
-                )
 
 
 @club_app.command()
