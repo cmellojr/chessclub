@@ -320,8 +320,8 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 0
 
 ## Disk Cache
 
-API responses are stored in `~/.cache/chessclub/` to avoid repeated network
-calls. Current TTLs:
+API responses are stored in a SQLite database at `~/.cache/chessclub/cache.db`
+to avoid repeated network calls. Current TTLs:
 
 | Endpoint | TTL | Rationale |
 |---|---|---|
@@ -333,10 +333,17 @@ calls. Current TTLs:
 | Tournament leaderboard | **7 days** | Finished tournament results are immutable |
 | Club tournament list | **30 minutes** | New tournaments appear at most weekly |
 
-**Clear the cache:**
+**Cache commands:**
 
 ```bash
-rm -rf ~/.cache/chessclub/
+# Show entry count and database size
+chessclub cache stats
+
+# Remove only expired entries (keep valid cached responses)
+chessclub cache clear --expired
+
+# Remove everything
+chessclub cache clear
 ```
 
 ---

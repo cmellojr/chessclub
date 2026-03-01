@@ -22,7 +22,7 @@
 - **Aggregate games view** — `club games` ranks all games across the last N tournaments by accuracy; filter with `--min-accuracy`
 - **Swiss + Arena support** — works for both tournament formats; falls back to the club member list when Chess.com does not expose a leaderboard for Swiss events
 - **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
-- **Disk cache** — responses cached in `~/.cache/chessclub/` with TTLs calibrated to data volatility; repeated commands run instantly
+- **Disk cache** — SQLite-backed cache at `~/.cache/chessclub/cache.db` with TTLs calibrated to data volatility; repeated commands run instantly; managed via `chessclub cache stats/clear`
 - **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server
 - **Typed domain models** — `Club`, `Member`, `Tournament`, `Game` as Python dataclasses, never raw dicts
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
@@ -74,6 +74,14 @@ All `club` commands accept `--output` / `-o`: `table` (default), `json`, or `csv
 | `club members <slug> [--details]` | No | Members with activity tier, join date; `--details` adds title |
 | `club tournaments <slug> [--details] [--games <ref>]` | **Yes** | Tournament list (oldest-first); `--details` adds standings; `--games` shows games for one tournament |
 | `club games <slug> [--last-n N] [--min-accuracy X]` | **Yes** | Tournament games ranked by Stockfish accuracy |
+
+### `cache` commands
+
+| Command | Description |
+|---|---|
+| `chessclub cache stats` | Show entry count, active/expired breakdown, and database size |
+| `chessclub cache clear` | Remove all cached entries |
+| `chessclub cache clear --expired` | Remove only entries whose TTL has elapsed |
 
 ---
 
@@ -203,8 +211,8 @@ Total: 2 games (2 with accuracy data)
 
 ## Disk Cache
 
-`chessclub` stores API responses in `~/.cache/chessclub/` to avoid repeating
-network calls. The second run of any command is nearly instant.
+`chessclub` stores API responses in a SQLite database at
+`~/.cache/chessclub/cache.db`. The second run of any command is nearly instant.
 
 | Data | TTL |
 |---|---|
@@ -217,7 +225,12 @@ network calls. The second run of any command is nearly instant.
 | Club tournament list | 30 minutes |
 
 Only HTTP 200 responses are cached. Errors (404, 429) always go to the network.
-To force a refresh: `rm -rf ~/.cache/chessclub/`
+
+```bash
+chessclub cache stats            # entry count and database size
+chessclub cache clear --expired  # remove only expired entries
+chessclub cache clear            # remove everything
+```
 
 See [docs/cache.md](docs/cache.md) for the full implementation notes.
 
@@ -281,7 +294,7 @@ All files are created with `0o600` permissions.
 │  · ChessComClient     implements ChessProvider  │
 │  · ChessComCookieAuth implements AuthProvider   │
 │  · ChessComOAuth      OAuth 2.0 PKCE + Loopback │
-│  · DiskCache          ~/.cache/chessclub/       │
+│  · SQLiteCache        ~/.cache/chessclub/       │
 └───────────────────┬─────────────────────────────┘
                     │ imports abstractions from
        ┌────────────▼──────────┐  ┌──────────────┐
@@ -328,7 +341,7 @@ src/
 │   ├── providers/
 │   │   └── chesscom/
 │   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth
-│   │       ├── cache.py      # DiskCache + CachedResponse
+│   │       ├── cache.py      # SQLiteCache + CachedResponse
 │   │       └── client.py     # ChessComClient
 │   └── services/
 │       └── club_service.py   # ClubService
@@ -370,7 +383,7 @@ pytest tests/ -v
 - [x] `club tournaments --details` — per-player standings
 - [x] `club tournaments --games <ref>` — games for a specific tournament by list #, name, or ID
 - [x] `club games` — tournament games ranked by Stockfish accuracy
-- [x] Disk cache — TTL-based, `~/.cache/chessclub/`
+- [x] Disk cache — SQLite-backed, `~/.cache/chessclub/cache.db`; `chessclub cache stats/clear`
 - [x] Clickable game hyperlinks in terminal output
 - [ ] `club leaderboard <slug> --year` — annual points aggregation
 - [ ] Player aliases — group multiple usernames under one identity
