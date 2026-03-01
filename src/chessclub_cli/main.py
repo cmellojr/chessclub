@@ -42,9 +42,11 @@ from chessclub.services.club_service import ClubService
 app = typer.Typer()
 club_app = typer.Typer()
 auth_app = typer.Typer(help="Manage Chess.com authentication.")
+cache_app = typer.Typer(help="Manage the API response cache.")
 
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
+app.add_typer(cache_app, name="cache")
 
 console = Console(legacy_windows=False)
 
@@ -858,3 +860,53 @@ def games(
                 "• Run [bold]chessclub club tournaments <slug>[/bold] "
                 "to inspect available tournaments[/dim]"
             )
+
+
+# ---------------------------------------------------------------------------
+# cache commands
+# ---------------------------------------------------------------------------
+
+
+@cache_app.command(name="stats")
+def cache_stats() -> None:
+    """Show cache statistics (entry count and database size)."""
+    from chessclub.providers.chesscom.cache import SQLiteCache
+
+    cache = SQLiteCache()
+    s = cache.stats()
+    if not s:
+        console.print("[yellow]Cache not found or unreadable.[/yellow]")
+        raise typer.Exit(1)
+    n = s["total"]
+    console.print(
+        f"Entries : {n} total  "
+        f"({s['active']} active, {s['expired']} expired)"
+    )
+    console.print(f"Location: {SQLiteCache._DB_PATH}")
+    console.print(f"Size    : {s['size_bytes'] / 1024:.1f} KB")
+
+
+@cache_app.command(name="clear")
+def cache_clear(
+    expired_only: bool = typer.Option(
+        False,
+        "--expired",
+        help="Remove only expired entries, keeping valid cached responses.",
+    ),
+) -> None:
+    """Clear cached API responses.
+
+    By default removes all entries.  Use --expired to remove only entries
+    whose TTL has elapsed while keeping still-valid responses in place.
+    """
+    from chessclub.providers.chesscom.cache import SQLiteCache
+
+    cache = SQLiteCache()
+    if expired_only:
+        n = cache.purge_expired()
+        label = "entry" if n == 1 else "entries"
+        console.print(f"Removed {n} expired {label}.")
+    else:
+        n = cache.clear()
+        label = "entry" if n == 1 else "entries"
+        console.print(f"Cache cleared ({n} {label} removed).")
