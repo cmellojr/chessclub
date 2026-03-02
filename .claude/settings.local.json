@@ -4,7 +4,16 @@
       "WebFetch(domain:www.chess.com)",
       "Bash(curl:*)",
       "WebFetch(domain:google.github.io)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(chessclub cache stats:*)",
+      "Bash(chessclub cache clear:*)",
+      "Bash(chessclub --help:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

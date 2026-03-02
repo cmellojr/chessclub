@@ -18,8 +18,11 @@ Reference with `@docs/roadmap.md` in Claude Code prompts for plan context.
 **Also implemented (not in original scope):**
 - [x] `club members <slug>` — activity tier (weekly/monthly/inactive), join date, optional `--details` for title
 - [x] `club games <slug>` — tournament games ranked by Stockfish accuracy; `--last-n` and `--min-accuracy` filters
-- [x] `club tournament-games <slug> <name-or-id>` — games from a specific tournament by name or ID
-- [x] Swiss tournament fallback — when the Chess.com leaderboard endpoint returns 404 for Swiss format, falls back to club member list as participant set
+- [x] `club tournaments --games <ref>` — games from a specific tournament by list `#`, name, or ID (replaces standalone `tournament-games` command)
+- [x] `club stats` — enriched: member count, creation date, events, country flag, description
+- [x] Swiss tournament fallback — when the Chess.com leaderboard endpoint returns 404, falls back to club member list as participant set
+- [x] Clickable game hyperlinks in terminal output (Windows Terminal, iTerm2)
+- [x] Cookie Helper Chrome extension (`tools/chessclub-cookie-helper/`) for easy auth setup
 
 ### Phase 2 — Player Aliases (multiple identities)
 
@@ -42,7 +45,7 @@ Players who use more than one username can be grouped under a single unified ide
 - [ ] Implement `chessclub club leaderboard <slug> --year <year>` command with `--type arena|swiss` filter
 - [ ] Implement `RatingHistoryService` to track rating evolution per tournament
 - [ ] Implement `chessclub player rating-history <username> --club <slug>` command
-- [x] Implement local cache in `~/.cache/chessclub/` (JSON files) for immutable past tournament data — see [`docs/cache.md`](cache.md)
+- [x] Implement SQLite cache in `~/.cache/chessclub/cache.db` with TTL policy and `chessclub cache stats/clear` commands — see [`docs/cache.md`](cache.md)
 - [ ] Implement `MatchupService` for head-to-head records between club members
 - [ ] Implement `chessclub club matchups <slug>` command with head-to-head table
 - [ ] Add unit tests for each new service and command
