@@ -17,10 +17,12 @@ Saves Chess.com session cookies (cookie-based auth).
 **How it works**
 
 1. Opens Chess.com in the browser so you can log in normally.
-2. Prompts you to paste `ACCESS_TOKEN` and `PHPSESSID` from the browser's
-   DevTools → Application → Cookies → `https://www.chess.com`.
-3. Makes a test request against the public API to validate the cookies.
-4. Writes `~/.config/chessclub/credentials.json` (mode `0o600`).
+2. You install the `chessclub Cookie Helper` Chrome extension (load unpacked
+   from `tools/chessclub-cookie-helper/`) and click its icon to copy the
+   `ACCESS_TOKEN` and `PHPSESSID` values.
+3. Paste both values when prompted.
+4. Makes a test request against the public API to validate the cookies.
+5. Writes `~/.config/chessclub/credentials.json` (mode `0o600`).
 
 **Notes**
 
@@ -79,7 +81,23 @@ API (`api.chess.com/pub/club/{slug}`). No authentication required.
 chessclub club stats clube-de-xadrez-de-jundiai
 ```
 
-**Fields:** name, description, country, URL.
+**Fields:** club name (with country flag emoji), member count, creation date,
+events played (requires auth — counts internal tournaments), and description.
+
+The output is formatted as an 80-column panel:
+
+```
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                    🇧🇷 Clube de Xadrez de Jundiaí                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+  752 Members  |  Created on 15/02/2022  |  141 Events
+
+Welcome to Clube de Xadrez de Jundiaí! ...
+```
+
+> The event count requires authentication. Without credentials it is omitted.
+
+**Output formats:** `--output table` (default), `--output json`, `--output csv`.
 
 ---
 
@@ -114,16 +132,20 @@ chessclub club members clube-de-xadrez-de-jundiai --details
 
 ---
 
-### `chessclub club tournaments <slug> [--details]`
+### `chessclub club tournaments <slug> [--details] [--games <ref>]`
 
-Lists all past tournaments organised by the club.
+Lists all past tournaments organised by the club, numbered oldest-first
+(`#1` = oldest, `#N` = newest). Authentication required.
 
 ```
 chessclub club tournaments clube-de-xadrez-de-jundiai
 chessclub club tournaments clube-de-xadrez-de-jundiai --details
+chessclub club tournaments clube-de-xadrez-de-jundiai --games 141
+chessclub club tournaments clube-de-xadrez-de-jundiai --games "Fevereiro"
+chessclub club tournaments clube-de-xadrez-de-jundiai --games 6265185
 ```
 
-**How it works**
+**How it works — tournament list**
 
 1. Resolves the numeric `club_id` via the public API.
 2. Paginates through `GET www.chess.com/callback/clubs/live/past/{club_id}`
@@ -131,8 +153,22 @@ chessclub club tournaments clube-de-xadrez-de-jundiai --details
 3. The response contains two tournament types:
    - `live_tournament` → mapped to type `swiss`
    - `arena` → mapped to type `arena`
-4. With `--details`: fetches the leaderboard for each tournament and prints a
+4. Results are sorted oldest-first and numbered `#1 … #N`.
+5. With `--details`: fetches the leaderboard for each tournament and prints a
    per-tournament standings table below the main list.
+
+**How it works — `--games <ref>`**
+
+`<ref>` is resolved in order:
+
+1. If purely numeric and within `1 … N`: selects the tournament at that
+   position in the oldest-first list.
+2. Otherwise: passed to `find_tournaments_by_name_or_id` (case-insensitive
+   substring match or exact ID). When multiple tournaments match a name, the
+   most recent one is used.
+
+After resolution, the same game-fetching logic as described below runs, and
+the games table is printed instead of the tournament list.
 
 **Authentication required** for the internal `callback` endpoint.
 
@@ -143,25 +179,28 @@ chessclub club tournaments clube-de-xadrez-de-jundiai --details
 ### `chessclub club games <slug> [--last-n N] [--min-accuracy X]`
 
 Lists tournament games ranked by average Stockfish accuracy (best first).
+Aggregates across the last N tournaments.
 
 ```
 chessclub club games clube-de-xadrez-de-jundiai
 chessclub club games clube-de-xadrez-de-jundiai --last-n 3
 chessclub club games clube-de-xadrez-de-jundiai --min-accuracy 85
+chessclub club games clube-de-xadrez-de-jundiai --last-n 0   # all tournaments
 ```
 
 **How it works**
 
 1. Fetches all club tournaments (see `club tournaments` above).
-2. Sorts tournaments newest-first and slices to `--last-n` (default 5; `0` =
-   all tournaments).
-3. For each tournament, calls `club tournament-games` logic (see below).
+2. Sorts tournaments newest-first and slices to `--last-n` (default 5;
+   `0` = all tournaments).
+3. For each tournament, resolves participants from the leaderboard endpoint
+   (falls back to club member list on 404) then fetches game archives.
 4. Deduplicates games that appear in more than one tournament window using the
    game URL as the canonical key.
 5. Sorts all collected games by average accuracy descending. Games without
    accuracy data (Chess.com Game Review not run) appear last.
 
-`--min-accuracy` filters out games below the threshold **and** games without
+`--min-accuracy` filters out games below the threshold and games without
 accuracy data.
 
 **Authentication required.**
@@ -170,51 +209,60 @@ accuracy data.
 
 ---
 
-### `chessclub club tournament-games <slug> <name-or-id>`
+### How games are fetched (shared logic)
 
-Lists all games from a specific tournament.
+Used by both `club tournaments --games` and `club games`:
 
-```
-chessclub club tournament-games clube-de-xadrez-de-jundiai "26o Torneio"
-chessclub club tournament-games clube-de-xadrez-de-jundiai 6265185
-```
-
-`<name-or-id>` accepts either the exact numeric tournament ID or a
-case-insensitive substring of the tournament name. When multiple tournaments
-match the name, the most recent one is used.
-
-**How it works**
-
-1. Fetches the club's tournament list to resolve the tournament object.
-2. Attempts to fetch the leaderboard for that tournament:
-   - **Arena tournaments:** `GET www.chess.com/callback/live/tournament/{id}/leaderboard`
-   - **Swiss tournaments:** `GET www.chess.com/callback/live-tournament/{id}/leaderboard`
-   - Each URL is tried up to 3 times on HTTP 429 with exponential back-off
+1. Resolves participants from the tournament leaderboard:
+   - **Arena:** `GET www.chess.com/callback/live/tournament/{id}/leaderboard`
+   - **Swiss:** `GET www.chess.com/callback/live-tournament/{id}/leaderboard`
+   - Each URL is retried up to 3 times on HTTP 429 with exponential back-off
      (1 s → 2 s → 4 s).
-3. **Leaderboard fallback (Swiss):** Chess.com does not expose a public
+2. **Leaderboard fallback (Swiss):** Chess.com does not expose a consistent
    leaderboard endpoint for Swiss club tournaments. When both URLs return 404
-   and the tournament has registered participants (`player_count > 0`), the
-   provider falls back to the full club member list as the participant set.
-   Since all tournament entrants must be club members, this approximation is
-   accurate in practice.
-4. For each participant, fetches their Chess.com monthly game archive for every
-   calendar month that overlaps with the tournament window.
-5. Keeps only games where:
+   and the tournament has `player_count > 0`, the provider falls back to the
+   full club member list as the participant set. Since all tournament entrants
+   must be club members, this approximation is accurate in practice.
+3. For each participant, fetches their monthly game archive
+   (`GET api.chess.com/pub/player/{username}/games/{year}/{month}`) for every
+   calendar month that overlaps the tournament window.
+4. Keeps only games where:
    - Both `white` and `black` are in the participant set.
    - `end_time` falls within `[start_date, effective_end]` where
      `effective_end = max(end_date, start_date) + 6 hours` (buffer for rounds
      that finish after the official end time).
-6. Deduplicates by game URL and sorts by average accuracy descending.
+5. Deduplicates by game URL and sorts by average accuracy descending.
 
-**Footer shows:**
-- Number of games found.
-- Number of games with accuracy data.
-- Participant source: `N participants` (leaderboard) or
-  `club members (leaderboard unavailable)` (fallback).
+**Link column:** in terminals that support hyperlinks (Windows Terminal,
+iTerm2), the `view` column is a clickable link that opens the game on
+Chess.com.
 
-**Authentication required.**
+---
 
-**Output formats:** `--output table`, `--output json`, `--output csv`.
+## Cache commands
+
+### `chessclub cache stats`
+
+Shows the number of cached entries, active/expired breakdown, database
+location, and file size.
+
+```
+Entries : 87 total  (85 active, 2 expired)
+Location: ~/.cache/chessclub/cache.db
+Size    : 1243.8 KB
+```
+
+---
+
+### `chessclub cache clear [--expired]`
+
+Removes cached API responses.
+
+- Without flags: removes all entries.
+- `--expired`: removes only entries whose TTL has elapsed, keeping still-valid
+  responses in place.
+
+The cache rebuilds automatically on the next command run.
 
 ---
 

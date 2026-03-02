@@ -37,6 +37,7 @@ src/
 │   ├── providers/           # Platform-specific implementations
 │   │   └── chesscom/
 │   │       ├── auth.py      # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
+│   │       ├── cache.py     # SQLiteCache + CachedResponse
 │   │       └── client.py    # ChessComClient implements ChessProvider
 │   │
 │   └── services/            # Business logic
@@ -121,10 +122,11 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 
 | Model | Key fields |
 |---|---|
-| `Club` | `id` (slug), `provider_id` (platform numeric ID), `name`, `description`, `country`, `url` |
+| `Club` | `id` (slug), `provider_id`, `name`, `description`, `country`, `url`, `members_count`, `created_at`, `location`, `matches_count` |
 | `Member` | `username`, `rating`, `title`, `joined_at` |
-| `Tournament` | `id`, `name`, `tournament_type`, `status`, `start_date`, `end_date`, `player_count`, `winner_username`, `winner_score` |
-| `TournamentResult` | `tournament_id`, `player`, `position`, `score` (future use) |
+| `Tournament` | `id`, `name`, `tournament_type`, `status`, `start_date`, `end_date`, `player_count`, `winner_username`, `winner_score`, `club_slug` |
+| `TournamentResult` | `tournament_id`, `player`, `position`, `score`, `rating` |
+| `Game` | `white`, `black`, `result`, `opening_eco`, `played_at`, `white_accuracy`, `black_accuracy`, `url`; computed `avg_accuracy` |
 
 ## API Strategy — Chess.com
 
@@ -136,14 +138,21 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 ```
 chessclub
 ├── club
-│   ├── stats <slug>         # Club name (public API, no auth)
-│   ├── members <slug>       # Member list (public API, no auth)
-│   └── tournaments <slug>   # Tournaments organised by the club (requires auth)
-└── auth
-    ├── login                # OAuth 2.0 PKCE + loopback; opens browser; tokens auto-refresh
-    ├── setup                # Cookie fallback: browser DevTools extraction and save
-    ├── status               # Shows OAuth token + cookie session; validates active method
-    └── clear                # Removes credentials.json AND oauth_token.json
+│   ├── stats <slug>                    # Club info + stats (public API, no auth)
+│   ├── members <slug> [--details]      # Member list with activity tier (public API)
+│   ├── tournaments <slug>              # Tournament list, oldest-first (requires auth)
+│   │     [--details]                   #   + per-tournament standings
+│   │     [--games <#|name|id>]         #   + games for one tournament ranked by accuracy
+│   └── games <slug>                    # Games from last N tournaments (requires auth)
+│         [--last-n N] [--min-accuracy X]
+├── auth
+│   ├── login                           # OAuth 2.0 PKCE + loopback; tokens auto-refresh
+│   ├── setup                           # Cookie fallback: Cookie Helper extension
+│   ├── status                          # Shows token + session; validates active method
+│   └── clear                           # Removes credentials.json AND oauth_token.json
+└── cache
+    ├── stats                           # Entry count, active/expired, database size
+    └── clear [--expired]               # Remove all entries (or only expired)
 ```
 
 The CLI (`chessclub_cli/main.py`) is the **composition root**: the only module that
