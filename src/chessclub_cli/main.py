@@ -556,7 +556,9 @@ def tournaments(
         try:
             with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
                 t_results = service.get_tournament_results(
-                    tournament.id, tournament_type=tournament.tournament_type
+                    tournament.id,
+                    tournament_type=tournament.tournament_type,
+                    tournament_url=tournament.url,
                 )
                 game_data = service.get_tournament_games(tournament)
         except AuthenticationRequiredError as e:
@@ -648,7 +650,9 @@ def tournaments(
             for row, t in zip(rows, data):
                 try:
                     results = service.get_tournament_results(
-                        t.id, tournament_type=t.tournament_type
+                        t.id,
+                        tournament_type=t.tournament_type,
+                        tournament_url=t.url,
                     )
                     row["results"] = [asdict(r) for r in results]
                 except AuthenticationRequiredError as e:
@@ -704,7 +708,9 @@ def tournaments(
                 console.rule(f"[bold]{t.name}[/bold]")
                 try:
                     results = service.get_tournament_results(
-                        t.id, tournament_type=t.tournament_type
+                        t.id,
+                        tournament_type=t.tournament_type,
+                        tournament_url=t.url,
                     )
                 except AuthenticationRequiredError as e:
                     console.print(

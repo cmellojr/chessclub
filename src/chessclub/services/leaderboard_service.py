@@ -73,7 +73,9 @@ class LeaderboardService:
 
         for t in qualifying:
             results = self.provider.get_tournament_results(
-                t.id, tournament_type=t.tournament_type
+                t.id,
+                tournament_type=t.tournament_type,
+                tournament_url=t.url,
             )
             for r in results:
                 key = r.player.lower()

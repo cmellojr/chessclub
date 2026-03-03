@@ -56,6 +56,7 @@ class ChessProvider(ABC):
         self,
         tournament_id: str,
         tournament_type: str = "arena",
+        tournament_url: str | None = None,
     ) -> list[TournamentResult]:
         """Return per-player standings for a finished tournament.
 
@@ -65,6 +66,10 @@ class ChessProvider(ABC):
                 select the correct leaderboard endpoint when the provider
                 exposes different URLs for each format.  Defaults to
                 ``"arena"`` for backward compatibility.
+            tournament_url: Optional public-API slug (e.g.
+                ``"my-tournament-name-12345"``).  When provided, providers
+                may use it to query a secondary endpoint if the primary one
+                is unavailable.
 
         Returns:
             A list of :class:`TournamentResult` instances, ordered by

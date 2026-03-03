@@ -92,6 +92,14 @@ class Tournament:
     endpoint is unavailable (e.g. Swiss format on Chess.com).
     """
 
+    url: str | None = None
+    """Public-API slug for this tournament (e.g.
+    ``"my-tournament-name-12345"``).
+
+    Used to query ``api.chess.com/pub/tournament/{url}`` for standings data.
+    Populated from the ``url`` field in the provider's raw response.
+    """
+
 
 # ----------------------
 # TournamentResult
