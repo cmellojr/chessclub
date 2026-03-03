@@ -863,6 +863,102 @@ def games(
 
 
 # ---------------------------------------------------------------------------
+# leaderboard command
+# ---------------------------------------------------------------------------
+
+
+@club_app.command()
+def leaderboard(
+    slug: str,
+    year: int = typer.Option(
+        ..., "--year", "-y", help="Calendar year to aggregate."
+    ),
+    month: int | None = typer.Option(
+        None,
+        "--month",
+        "-m",
+        min=1,
+        max=12,
+        help="Month (1–12).  Omit for a full-year leaderboard.",
+    ),
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Show the club leaderboard for a year or a specific month.
+
+    Aggregates tournament results across all events that ended in the
+    specified period and ranks players by total chess score.  Requires
+    authentication.
+
+    Examples:
+
+        chessclub club leaderboard my-club --year 2025
+
+        chessclub club leaderboard my-club --year 2025 --month 3
+    """
+    from chessclub.services.leaderboard_service import LeaderboardService
+
+    try:
+        service = _get_service()
+        lb = LeaderboardService(service.provider)
+        period_label = (
+            f"{year}/{month:02d}" if month else str(year)
+        )
+        with console.status(
+            f"[dim]Fetching leaderboard for {period_label}…[/dim]",
+            spinner="dots",
+        ):
+            data = lb.get_leaderboard(slug, year=year, month=month)
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    if not data:
+        console.print(
+            f"[yellow]No tournament data found for {period_label}.[/yellow]"
+        )
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(p) for p in data], indent=2))
+
+    elif output == OutputFormat.csv:
+        _fields = [
+            "username", "tournaments_played", "wins",
+            "total_score", "avg_score",
+        ]
+        print(_to_csv([asdict(p) for p in data], _fields), end="")
+
+    else:
+        table = Table(
+            title=f"Leaderboard {period_label} — {slug}",
+            show_lines=False,
+        )
+        table.add_column("#", justify="right", style="dim", width=4)
+        table.add_column("Player", style="cyan")
+        table.add_column("Tournaments", justify="right")
+        table.add_column("Wins", justify="right")
+        table.add_column("Total pts", justify="right", style="bold")
+        table.add_column("Avg pts", justify="right")
+
+        for i, p in enumerate(data, 1):
+            table.add_row(
+                str(i),
+                p.username,
+                str(p.tournaments_played),
+                str(p.wins),
+                f"{p.total_score:.1f}",
+                f"{p.avg_score:.1f}",
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(data)} players · {period_label}[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
 # cache commands
 # ---------------------------------------------------------------------------
 
