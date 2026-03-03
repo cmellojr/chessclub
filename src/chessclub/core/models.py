@@ -160,3 +160,26 @@ class Game:
         vals = [v for v in (self.white_accuracy, self.black_accuracy)
                 if v is not None]
         return sum(vals) / len(vals) if vals else None
+
+
+# ----------------------
+# PlayerStats
+# ----------------------
+
+
+@dataclass
+class PlayerStats:
+    """Aggregated tournament statistics for a single player."""
+
+    username: str
+    tournaments_played: int
+    """Number of tournaments the player participated in."""
+
+    wins: int
+    """Number of 1st-place finishes."""
+
+    total_score: float
+    """Sum of chess scores across all qualifying tournaments."""
+
+    avg_score: float
+    """Average chess score per tournament (total_score / tournaments_played)."""
