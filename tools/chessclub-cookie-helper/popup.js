@@ -99,11 +99,6 @@ async function init() {
     toggleReveal("sessid-value", e.target);
   });
 
-  // Copy both
-  document.getElementById("copy-both").addEventListener("click", (e) => {
-    const text = `ACCESS_TOKEN: ${token ?? ""}\nPHPSESSID: ${sessid ?? ""}`;
-    copyWithFeedback(e.target, text);
-  });
 }
 
 document.addEventListener("DOMContentLoaded", init);

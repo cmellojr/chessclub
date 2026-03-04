@@ -149,29 +149,25 @@ def setup():
     """Configure and save Chess.com credentials locally."""
     console.print("\n[bold]Chess.com credentials setup[/bold]\n")
     console.print(
-        "We'll open Chess.com in your browser. "
-        "Log in normally and follow the instructions below.\n"
-    )
-
-    typer.confirm(
-        "Press Enter to open the browser", default=True, prompt_suffix=" "
-    )
-    webbrowser.open("https://www.chess.com/login")
-
-    console.print("\n[bold]How to retrieve cookies after login:[/bold]")
-    console.print(
-        "  1. After logging in, click the [cyan]chessclub Cookie Helper[/cyan] "
-        "icon in the browser toolbar (Chess.com knight icon)."
+        "Use the [cyan]chessclub Cookie Helper[/cyan] extension "
+        "to copy the cookies from Chess.com.\n"
     )
     console.print(
-        "  2. The extension shows [cyan]ACCESS_TOKEN[/cyan] and "
-        "[cyan]PHPSESSID[/cyan] — copy each value and paste below.\n"
+        "  1. Log in at [link=https://www.chess.com]chess.com[/link] "
+        "if you haven't already."
+    )
+    console.print(
+        "  2. Click the [cyan]chessclub Cookie Helper[/cyan] "
+        "icon in the browser toolbar."
+    )
+    console.print(
+        "  3. Copy [cyan]ACCESS_TOKEN[/cyan] and "
+        "[cyan]PHPSESSID[/cyan] and paste below.\n"
     )
     console.print(
         "[dim]No extension? Install it from "
         "[bold]tools/chessclub-cookie-helper/[/bold] "
-        "(load unpacked in chrome://extensions). "
-        "Or open DevTools → Application → Cookies → https://www.chess.com.[/dim]\n"
+        "(load unpacked in chrome://extensions).[/dim]\n"
     )
 
     access_token = typer.prompt("Paste the ACCESS_TOKEN value", hide_input=True)
@@ -351,6 +347,7 @@ def stats(
     else:
         # Country URL → flag emoji (e.g. ".../country/BR" → "🇧🇷")
         def _flag(country_url: str | None) -> str:
+            """Convert a country URL to a flag emoji."""
             if not country_url:
                 return ""
             code = country_url.rstrip("/").split("/")[-1].upper()
@@ -362,6 +359,7 @@ def stats(
 
         # Strip HTML tags; convert <br> to newline first
         def _strip_html(html: str | None) -> str:
+            """Strip HTML tags, converting ``<br>`` to newlines."""
             if not html:
                 return ""
             text = re.sub(r"<br\s*/?>", "\n", html, flags=re.IGNORECASE)
@@ -795,6 +793,7 @@ def games(
     with_accuracy = sum(1 for g in data if g.avg_accuracy is not None)
 
     def _fmt_acc(val: float | None) -> str:
+        """Format an accuracy value as a 1-decimal string."""
         return f"{val:.1f}" if val is not None else "—"
 
     if output == OutputFormat.json:
