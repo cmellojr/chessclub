@@ -318,6 +318,87 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 0
 
 ---
 
+### `chessclub club leaderboard <slug> --year Y [--month M]`
+
+Ranks players by total chess score across all tournaments that ended in the
+specified period.
+
+```
+$ chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
+
+              Leaderboard 2025 — clube-de-xadrez-de-jundiai
+  #   Player           Tournaments   Wins   Total pts   Avg pts
+ ────────────────────────────────────────────────────────────────
+  1   joaosilva                 12      5       87.0       7.2
+  2   mariaoliveira             11      3       76.5       7.0
+  3   carlosmendes              10      2       65.0       6.5
+  ...
+
+ 42 players · 2025
+```
+
+**With month filter:**
+
+```bash
+chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025 --month 3
+```
+
+---
+
+### `chessclub club matchups <slug> [--last-n N]`
+
+Shows head-to-head win/loss/draw records for every pair of club members who
+have faced each other in tournament games.
+
+```
+$ chessclub club matchups clube-de-xadrez-de-jundiai
+
+              Head-to-Head — clube-de-xadrez-de-jundiai
+ Player A         W   D   W   Player B         Total
+ ─────────────────────────────────────────────────────
+ joaosilva        4   1   2   carlosmendes         7
+ mariaoliveira    3   0   3   joaosilva            6
+ carlosmendes     2   2   1   anapaula             5
+ ...
+
+ 18 matchups · last 5 tournaments
+```
+
+**Options:**
+
+```bash
+chessclub club matchups clube-de-xadrez-de-jundiai --last-n 10
+chessclub club matchups clube-de-xadrez-de-jundiai --last-n 0   # all tournaments
+```
+
+---
+
+### `chessclub player rating-history <username> --club <slug>`
+
+Tracks a player's rating evolution across club tournaments.
+
+```
+$ chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
+
+      Rating History — joaosilva @ clube-de-xadrez-de-jundiai
+  #   Tournament                       Type    Date         Rating  Pos   Score
+ ────────────────────────────────────────────────────────────────────────────────
+  1   1o Torneio XIII de Agosto        swiss   2022-03-05    1520    3     6.0
+  2   2o Torneio XIII de Agosto        swiss   2022-04-02    1560    2     7.0
+  3   3o Torneio XIII de Agosto        swiss   2022-05-07    1610    1     8.5
+ ...
+
+ 24 tournaments · joaosilva
+```
+
+**Limiting to recent tournaments:**
+
+```bash
+chessclub player rating-history joaosilva -c clube-de-xadrez-de-jundiai --last-n 10
+```
+
+---
+
 ## Disk Cache
 
 API responses are stored in a SQLite database at `~/.cache/chessclub/cache.db`
@@ -414,6 +495,41 @@ results = service.get_tournament_results(
 )
 for r in results:
     print(f"#{r.position}  {r.player}  {r.score} pts")
+```
+
+**Leaderboard:**
+
+```python
+from chessclub.services.leaderboard_service import LeaderboardService
+
+lb = LeaderboardService(client)
+stats = lb.get_leaderboard("clube-de-xadrez-de-jundiai", year=2025)
+for s in stats:
+    print(f"{s.username}  {s.total_score:.1f} pts  {s.wins} wins")
+```
+
+**Rating history:**
+
+```python
+from chessclub.services.rating_history_service import RatingHistoryService
+
+rhs = RatingHistoryService(client)
+history = rhs.get_rating_history(
+    "clube-de-xadrez-de-jundiai", "joaosilva"
+)
+for snap in history:
+    print(f"{snap.tournament_name}  rating={snap.rating}  #{snap.position}")
+```
+
+**Matchups:**
+
+```python
+from chessclub.services.matchup_service import MatchupService
+
+ms = MatchupService(client)
+matchups = ms.get_matchups("clube-de-xadrez-de-jundiai", last_n=5)
+for m in matchups:
+    print(f"{m.player_a} vs {m.player_b}: {m.wins_a}-{m.draws}-{m.wins_b}")
 ```
 
 **Without authentication** (public endpoints only):

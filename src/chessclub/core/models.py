@@ -191,3 +191,74 @@ class PlayerStats:
 
     avg_score: float
     """Average chess score per tournament (total_score / tournaments_played)."""
+
+
+# ----------------------
+# RatingSnapshot
+# ----------------------
+
+
+@dataclass
+class RatingSnapshot:
+    """A player's rating and result at one tournament.
+
+    Used to track rating evolution over time within a club.
+    """
+
+    tournament_id: str
+    """Provider-specific tournament identifier."""
+
+    tournament_name: str
+    """Display name of the tournament."""
+
+    tournament_type: str
+    """Format of the event: ``"swiss"`` or ``"arena"``."""
+
+    tournament_date: int | None
+    """Unix timestamp of the tournament end (or start as
+    fallback), used for chronological ordering."""
+
+    rating: int | None
+    """Player rating at the time of the tournament."""
+
+    position: int
+    """Finishing position in the tournament."""
+
+    score: float | None
+    """Chess score achieved in the tournament."""
+
+
+# ----------------------
+# Matchup
+# ----------------------
+
+
+@dataclass
+class Matchup:
+    """Head-to-head record between two club members.
+
+    Players are stored alphabetically (case-insensitive) so
+    that ``player_a < player_b`` always holds.  ``wins_a``
+    and ``wins_b`` correspond to those respective players.
+    """
+
+    player_a: str
+    """First player (alphabetically by lowercase)."""
+
+    player_b: str
+    """Second player (alphabetically by lowercase)."""
+
+    wins_a: int
+    """Games won by ``player_a``."""
+
+    wins_b: int
+    """Games won by ``player_b``."""
+
+    draws: int
+    """Games drawn between the two players."""
+
+    total_games: int
+    """Total number of games played: wins_a + wins_b + draws."""
+
+    last_played: int | None = None
+    """Unix timestamp of the most recent game between them."""

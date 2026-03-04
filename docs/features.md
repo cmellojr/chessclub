@@ -239,6 +239,79 @@ Chess.com.
 
 ---
 
+### `chessclub club leaderboard <slug> --year Y [--month M]`
+
+Aggregates tournament results for a year (or a specific month) and ranks
+players by total chess score. Ties are broken by number of 1st-place finishes.
+Authentication required.
+
+```
+chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
+chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025 --month 3
+```
+
+**How it works**
+
+1. Fetches all club tournaments via `get_club_tournaments()`.
+2. Filters to tournaments whose `end_date` (or `start_date` fallback) falls
+   within the requested year and optional month.
+3. For each qualifying tournament, fetches the leaderboard via
+   `get_tournament_results()` and accumulates per-player totals.
+4. Sorts by `total_score` descending, then by `wins` descending.
+
+**Output formats:** `--output table`, `--output json`, `--output csv`.
+
+---
+
+### `chessclub club matchups <slug> [--last-n N]`
+
+Shows head-to-head win/loss/draw records between every pair of club members
+who have played each other. Authentication required.
+
+```
+chessclub club matchups clube-de-xadrez-de-jundiai
+chessclub club matchups clube-de-xadrez-de-jundiai --last-n 10
+chessclub club matchups clube-de-xadrez-de-jundiai --last-n 0   # all tournaments
+```
+
+**How it works**
+
+1. Fetches games via `get_club_games(slug, last_n=last_n)`.
+2. Groups games by player pair (alphabetical order, case-insensitive).
+3. Tallies wins, losses, and draws for each pair from `Game.result`.
+4. Sorts by `total_games` descending (most active rivalries first).
+
+`--last-n` defaults to 5 (last 5 tournaments). Use `0` for all tournaments.
+
+**Output formats:** `--output table`, `--output json`, `--output csv`.
+
+---
+
+## Player commands
+
+### `chessclub player rating-history <username> --club <slug> [--last-n N]`
+
+Shows a player's rating evolution across club tournaments — one row per
+tournament they participated in, with rating, finishing position, and score.
+Authentication required.
+
+```
+chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
+chessclub player rating-history joaosilva -c clube-de-xadrez-de-jundiai --last-n 10
+```
+
+**How it works**
+
+1. Fetches all club tournaments, sorted chronologically.
+2. If `--last-n` is provided, takes only the N most recent tournaments.
+3. For each tournament, fetches the leaderboard and looks for the player
+   (case-insensitive match).
+4. Returns a chronological list of `RatingSnapshot` entries.
+
+**Output formats:** `--output table`, `--output json`, `--output csv`.
+
+---
+
 ## Cache commands
 
 ### `chessclub cache stats`
@@ -268,7 +341,7 @@ The cache rebuilds automatically on the next command run.
 
 ## Output formats
 
-All `club` commands accept `--output` / `-o` with three values:
+All `club` and `player` commands accept `--output` / `-o` with three values:
 
 | Value | Description |
 |---|---|
