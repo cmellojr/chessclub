@@ -91,6 +91,7 @@ def save_oauth_token(
     refresh_token: str | None,
     expires_at: float,
     scope: str | None = None,
+    client_id: str | None = None,
 ) -> None:
     """Persist an OAuth 2.0 token set to the config file.
 
@@ -102,18 +103,21 @@ def save_oauth_token(
         refresh_token: The refresh token, or ``None`` if not provided.
         expires_at: Unix timestamp at which the access token expires.
         scope: Space-separated OAuth scopes granted, or ``None``.
+        client_id: The OAuth client ID used for this token.  Stored
+            alongside the token so that subsequent sessions can
+            resolve it without requiring the environment variable.
     """
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data: dict = {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_at": expires_at,
+        "scope": scope,
+    }
+    if client_id:
+        data["client_id"] = client_id
     _OAUTH_TOKEN_FILE.write_text(
-        json.dumps(
-            {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "expires_at": expires_at,
-                "scope": scope,
-            },
-            indent=2,
-        ),
+        json.dumps(data, indent=2),
         encoding="utf-8",
     )
     _OAUTH_TOKEN_FILE.chmod(0o600)
