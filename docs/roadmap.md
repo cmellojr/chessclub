@@ -23,8 +23,19 @@ Reference with `@docs/roadmap.md` in Claude Code prompts for plan context.
 - [x] Swiss tournament fallback — when the Chess.com leaderboard endpoint returns 404, falls back to club member list as participant set
 - [x] Clickable game hyperlinks in terminal output (Windows Terminal, iTerm2)
 - [x] Cookie Helper Chrome extension (`tools/chessclub-cookie-helper/`) for easy auth setup
+- [x] SQLite cache in `~/.cache/chessclub/cache.db` with TTL policy and `chessclub cache stats/clear` commands — see [`docs/cache.md`](cache.md)
 
-### Phase 2 — Player Aliases (multiple identities)
+### Phase 2 — Club Analytics ✅
+
+- [x] Implement `LeaderboardService` in `services/` for annual points aggregation
+- [x] Implement `chessclub club leaderboard <slug> --year <year>` command
+- [x] Implement `RatingHistoryService` to track rating evolution per tournament
+- [x] Implement `chessclub player rating-history <username> --club <slug>` command
+- [x] Implement `MatchupService` for head-to-head records between club members
+- [x] Implement `chessclub club matchups <slug>` command with head-to-head table
+- [ ] Add unit tests for each new service and command
+
+### Phase 3 — Player Aliases (multiple identities)
 
 Players who use more than one username can be grouped under a single unified identity. All analytics services must honour these aliases automatically.
 
@@ -38,17 +49,6 @@ Players who use more than one username can be grouped under a single unified ide
 - [ ] Ensure `LeaderboardService`, `RatingHistoryService`, and `MatchupService` pass through `AliasResolver` before aggregating results
 - [ ] Display `display_name` instead of individual usernames in CLI output when an alias exists
 - [ ] Add unit tests for `AliasResolver` and management commands
-
-### Phase 3 — Club Analytics
-
-- [ ] Implement `LeaderboardService` in `services/` for annual points aggregation
-- [ ] Implement `chessclub club leaderboard <slug> --year <year>` command with `--type arena|swiss` filter
-- [ ] Implement `RatingHistoryService` to track rating evolution per tournament
-- [ ] Implement `chessclub player rating-history <username> --club <slug>` command
-- [x] Implement SQLite cache in `~/.cache/chessclub/cache.db` with TTL policy and `chessclub cache stats/clear` commands — see [`docs/cache.md`](cache.md)
-- [ ] Implement `MatchupService` for head-to-head records between club members
-- [ ] Implement `chessclub club matchups <slug>` command with head-to-head table
-- [ ] Add unit tests for each new service and command
 
 ### Phase 4 — Platform Expansion
 
@@ -91,8 +91,8 @@ Players who use more than one username can be grouped under a single unified ide
 ## Recorded Architecture Decisions
 
 - **Separate projects:** `chessclub` is a library/CLI; `chessclub-web` will be an independent Flask project that imports `chessclub` as a dependency.
-- **Analytics layer:** new services live in `src/chessclub/analytics/` (e.g. `LeaderboardService`, `RatingHistoryService`, `OpeningStatsService`). They never depend on providers directly.
+- **Analytics services:** live in `src/chessclub/services/` (e.g. `LeaderboardService`, `RatingHistoryService`, `MatchupService`). They depend only on `ChessProvider` — never on providers directly.
 - **`Game` model:** must be added to `core/` in Phase 1 to avoid incorrect dependencies in later phases.
 - **Local cache:** essential before Phase 5 — opening analysis may require hundreds of API calls.
 - **Player aliases:** stored in `~/.config/chessclub/aliases.json`. The `AliasResolver` is a service layer applied before any aggregation — all analytics services receive already-resolved data. The `display_name` is the canonical player identity across all outputs.
-- **Dependency rule:** `core/` imports nothing from the project. `services/` and `analytics/` import only from `core/`. No layer imports from a layer above it.
+- **Dependency rule:** `core/` imports nothing from the project. `services/` import only from `core/`. No layer imports from a layer above it.

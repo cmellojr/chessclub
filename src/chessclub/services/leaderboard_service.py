@@ -37,7 +37,8 @@ class LeaderboardService:
 
         Args:
             slug: The URL-friendly club identifier.
-            year: Calendar year to filter by (uses ``Tournament.end_date``).
+            year: Calendar year to filter by (uses ``Tournament.end_date``,
+                falling back to ``start_date`` when ``end_date`` is absent).
             month: Optional month (1–12).  When ``None``, all months of
                 *year* are included.
 
@@ -50,10 +51,14 @@ class LeaderboardService:
 
         qualifying = []
         for t in tournaments:
-            if t.end_date is None:
+            # Chess.com's internal API often returns end_time == 0 or omits
+            # it entirely; fall back to start_date so those tournaments are
+            # not silently dropped.
+            ts = t.end_date or t.start_date
+            if not ts:
                 continue
             dt = datetime.datetime.fromtimestamp(
-                t.end_date, tz=datetime.timezone.utc
+                ts, tz=datetime.timezone.utc
             )
             if dt.year != year:
                 continue
@@ -68,7 +73,9 @@ class LeaderboardService:
 
         for t in qualifying:
             results = self.provider.get_tournament_results(
-                t.id, tournament_type=t.tournament_type
+                t.id,
+                tournament_type=t.tournament_type,
+                tournament_url=t.url,
             )
             for r in results:
                 key = r.player.lower()

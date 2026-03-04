@@ -202,13 +202,16 @@ class ChessComClient(ChessProvider):
         self,
         tournament_id: str,
         tournament_type: str = "arena",
+        tournament_url: str | None = None,
     ) -> list[TournamentResult]:
         """Return per-player standings for a finished club tournament.
 
         Chess.com exposes different leaderboard endpoints for Swiss (live
         Swiss) and Arena formats.  This method probes the most likely URL
         first (based on ``tournament_type``) and falls back to the
-        alternative pattern when the primary returns HTTP 404.
+        alternative pattern when the primary returns HTTP 404.  If both
+        callback patterns fail and a public-API slug is available, it
+        falls back to ``api.chess.com/pub/tournament/{slug}``.
 
         Each URL attempt retries up to three times on HTTP 429 with
         exponential back-off (1 s, 2 s, 4 s).
@@ -218,6 +221,10 @@ class ChessComClient(ChessProvider):
                 returned by :meth:`get_club_tournaments`).
             tournament_type: Either ``"swiss"`` or ``"arena"`` (default).
                 Determines which leaderboard URL pattern is tried first.
+            tournament_url: Optional public-API slug (e.g.
+                ``"my-tournament-name-12345"``).  When provided and the
+                callback endpoints return nothing, the public API is used
+                as a fallback source of standings data.
 
         Returns:
             A list of :class:`~chessclub.core.models.TournamentResult`
@@ -246,6 +253,15 @@ class ChessComClient(ChessProvider):
             result = self._try_leaderboard(url, tournament_id)
             if result is not None:
                 return result
+
+        # Callback endpoints failed — try the public API if we have the slug.
+        if tournament_url:
+            result = self._results_from_public_api(
+                tournament_url, tournament_id
+            )
+            if result is not None:
+                return result
+
         return []
 
     def _try_leaderboard(
@@ -288,6 +304,92 @@ class ChessComClient(ChessProvider):
             self._parse_tournament_result(raw, tournament_id)
             for raw in r.json().get("players", [])
         ]
+
+    def _results_from_public_api(
+        self,
+        tournament_url: str,
+        tournament_id: str,
+    ) -> list[TournamentResult] | None:
+        """Fetch standings from the public Chess.com tournament API.
+
+        Used as a fallback when the internal callback leaderboard endpoints
+        return HTTP 404.  Chess.com exposes club live-tournament data at
+        ``api.chess.com/pub/tournament/{slug}``.
+
+        Structure differs by format:
+
+        - **Swiss**: ``/pub/tournament/{slug}`` → ``rounds[0]`` →
+          ``round/groups[0]`` → ``players[{username, points}]``.
+        - **Arena**: ``/pub/tournament/{slug}`` → ``rounds[0]`` →
+          ``players[{username, points, place_finish}]`` (no groups).
+
+        Args:
+            tournament_url: The public-API slug (``Tournament.url``).
+            tournament_id: Used to populate
+                :class:`~chessclub.core.models.TournamentResult` instances.
+
+        Returns:
+            A list of :class:`~chessclub.core.models.TournamentResult`
+            instances sorted by position ascending, or ``None`` if the
+            endpoint is unavailable or returns no data.
+        """
+        base = f"{self.BASE_URL}/tournament/{tournament_url}"
+        r = self._cached_get(base)
+        if r.status_code != 200:
+            return None
+
+        rounds = r.json().get("rounds", [])
+        if not rounds:
+            return None
+
+        r_round = self._cached_get(rounds[0])
+        if r_round.status_code != 200:
+            return None
+        round_data = r_round.json()
+
+        groups = round_data.get("groups", [])
+        if groups:
+            # Swiss format: standings are inside the group.
+            r_group = self._cached_get(groups[0])
+            if r_group.status_code != 200:
+                return None
+            players = r_group.json().get("players", [])
+            if not players:
+                return None
+            players_sorted = sorted(
+                players,
+                key=lambda p: p.get("points") or 0,
+                reverse=True,
+            )
+            return [
+                self._parse_tournament_result(
+                    {"username": p.get("username", ""),
+                     "rank": pos,
+                     "score": p.get("points"),
+                     "rating": None},
+                    tournament_id,
+                )
+                for pos, p in enumerate(players_sorted, 1)
+            ]
+        else:
+            # Arena format: players with place_finish are at the round level.
+            players = round_data.get("players", [])
+            if not players:
+                return None
+            players_sorted = sorted(
+                players,
+                key=lambda p: p.get("place_finish") or 999,
+            )
+            return [
+                self._parse_tournament_result(
+                    {"username": p.get("username", ""),
+                     "rank": p.get("place_finish", 0),
+                     "score": p.get("points"),
+                     "rating": None},
+                    tournament_id,
+                )
+                for p in players_sorted
+            ]
 
     def get_tournament_games(self, tournament: Tournament) -> list[Game]:
         """Return all games played inside a single club tournament.
@@ -498,6 +600,10 @@ class ChessComClient(ChessProvider):
         Returns:
             TTL in seconds, or ``None`` if the response must not be cached.
         """
+        # Public tournament API: finished tournament data is immutable.
+        if "/pub/tournament/" in url:
+            return 7 * 86400  # 7 days
+
         # Game archives: /pub/player/{u}/games/{year}/{month}
         m = re.search(r"/games/(\d{4})/(\d{2})$", url)
         if m:
@@ -685,4 +791,5 @@ class ChessComClient(ChessProvider):
             winner_username=winner.get("username"),
             winner_score=winner.get("score"),
             club_slug=club_slug,
+            url=raw.get("url"),
         )

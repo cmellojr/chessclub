@@ -41,7 +41,10 @@ src/
 │   │       └── client.py    # ChessComClient implements ChessProvider
 │   │
 │   └── services/            # Business logic
-│       └── club_service.py  # ClubService receives ChessProvider via DI
+│       ├── club_service.py            # ClubService receives ChessProvider via DI
+│       ├── leaderboard_service.py     # LeaderboardService — annual/monthly rankings
+│       ├── rating_history_service.py  # RatingHistoryService — per-player rating evolution
+│       └── matchup_service.py         # MatchupService — head-to-head records
 │
 └── chessclub_cli/           # CLI — composition root only
     └── main.py              # Typer app; the only place that imports concrete classes
@@ -108,7 +111,7 @@ class ChessProvider(ABC):
     def get_player(self, username: str) -> dict: ...
 ```
 
-`ClubService` depends only on `ChessProvider` — it never imports a concrete provider.
+All services (`ClubService`, `LeaderboardService`, `RatingHistoryService`, `MatchupService`) depend only on `ChessProvider` — they never import a concrete provider.
 
 ### Adding a new platform (e.g. Lichess)
 
@@ -127,6 +130,9 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 | `Tournament` | `id`, `name`, `tournament_type`, `status`, `start_date`, `end_date`, `player_count`, `winner_username`, `winner_score`, `club_slug` |
 | `TournamentResult` | `tournament_id`, `player`, `position`, `score`, `rating` |
 | `Game` | `white`, `black`, `result`, `opening_eco`, `played_at`, `white_accuracy`, `black_accuracy`, `url`; computed `avg_accuracy` |
+| `PlayerStats` | `username`, `tournaments_played`, `wins`, `total_score`, `avg_score` |
+| `RatingSnapshot` | `tournament_id`, `tournament_name`, `tournament_type`, `tournament_date`, `rating`, `position`, `score` |
+| `Matchup` | `player_a`, `player_b`, `wins_a`, `wins_b`, `draws`, `total_games`, `last_played` |
 
 ## API Strategy — Chess.com
 
@@ -143,8 +149,15 @@ chessclub
 │   ├── tournaments <slug>              # Tournament list, oldest-first (requires auth)
 │   │     [--details]                   #   + per-tournament standings
 │   │     [--games <#|name|id>]         #   + games for one tournament ranked by accuracy
-│   └── games <slug>                    # Games from last N tournaments (requires auth)
-│         [--last-n N] [--min-accuracy X]
+│   ├── games <slug>                    # Games from last N tournaments (requires auth)
+│   │     [--last-n N] [--min-accuracy X]
+│   ├── leaderboard <slug>              # Ranked player leaderboard (requires auth)
+│   │     --year Y [--month M]
+│   └── matchups <slug>                 # Head-to-head records (requires auth)
+│         [--last-n N]
+├── player
+│   └── rating-history <username>       # Rating evolution per tournament (requires auth)
+│         --club <slug> [--last-n N]
 ├── auth
 │   ├── login                           # OAuth 2.0 PKCE + loopback; tokens auto-refresh
 │   ├── setup                           # Cookie fallback: Cookie Helper extension

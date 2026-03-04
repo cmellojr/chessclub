@@ -20,11 +20,14 @@
 - **Tournament games ranked by accuracy** — `--games <ref>` on `tournaments` fetches all games sorted by Stockfish accuracy; `<ref>` is the list `#`, a partial name, or an exact ID
 - **Clickable game links** — in terminals that support hyperlinks (Windows Terminal, iTerm2), the `view` column opens the game on Chess.com
 - **Aggregate games view** — `club games` ranks all games across the last N tournaments by accuracy; filter with `--min-accuracy`
+- **Club leaderboard** — `club leaderboard` aggregates tournament results by year or month and ranks players by total chess score
+- **Rating history** — `player rating-history` tracks a player's rating evolution across club tournaments
+- **Head-to-head matchups** — `club matchups` shows win/loss/draw records for every pair of players
 - **Swiss + Arena support** — works for both tournament formats; falls back to the club member list when Chess.com does not expose a leaderboard for Swiss events
 - **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
 - **Disk cache** — SQLite-backed cache at `~/.cache/chessclub/cache.db` with TTLs calibrated to data volatility; repeated commands run instantly; managed via `chessclub cache stats/clear`
 - **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server
-- **Typed domain models** — `Club`, `Member`, `Tournament`, `Game` as Python dataclasses, never raw dicts
+- **Typed domain models** — `Club`, `Member`, `Tournament`, `Game`, `PlayerStats`, `RatingSnapshot`, `Matchup` as Python dataclasses, never raw dicts
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
 - **Google Python Style Guide** throughout
 
@@ -49,6 +52,11 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 3
 # View games from a specific tournament (by list #, name, or ID)
 chessclub club tournaments clube-de-xadrez-de-jundiai --games 141
 chessclub club tournaments clube-de-xadrez-de-jundiai --games "26o Torneio"
+
+# Club analytics
+chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
+chessclub club matchups clube-de-xadrez-de-jundiai --last-n 10
+chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
 ```
 
 ---
@@ -74,6 +82,16 @@ All `club` commands accept `--output` / `-o`: `table` (default), `json`, or `csv
 | `club members <slug> [--details]` | No | Members with activity tier, join date; `--details` adds title |
 | `club tournaments <slug> [--details] [--games <ref>]` | **Yes** | Tournament list (oldest-first); `--details` adds standings; `--games` shows games for one tournament |
 | `club games <slug> [--last-n N] [--min-accuracy X]` | **Yes** | Tournament games ranked by Stockfish accuracy |
+| `club leaderboard <slug> --year Y [--month M]` | **Yes** | Ranked player leaderboard for a year or month |
+| `club matchups <slug> [--last-n N]` | **Yes** | Head-to-head win/loss/draw records between members |
+
+### `player` commands
+
+All `player` commands accept `--output` / `-o`: `table` (default), `json`, or `csv`.
+
+| Command | Auth | Description |
+|---|---|---|
+| `player rating-history <username> --club <slug> [--last-n N]` | **Yes** | Rating evolution across club tournaments |
 
 ### `cache` commands
 
@@ -297,20 +315,24 @@ All files are created with `0o600` permissions.
 │  · SQLiteCache        ~/.cache/chessclub/       │
 └───────────────────┬─────────────────────────────┘
                     │ imports abstractions from
-       ┌────────────▼──────────┐  ┌──────────────┐
-       │  auth/                │  │  services/   │
-       │  · AuthProvider (ABC) │  │  ClubService │
-       │  · AuthCredentials    │  │  (core only) │
-       │  · credentials store  │  └──────┬───────┘
-       └───────────────────────┘         │
-                                         │ imports
-                        ┌────────────────▼──────────────┐
-                        │  core/  (zero project imports) │
-                        │  · ChessProvider (ABC)         │
-                        │  · Club, Member, Tournament,   │
-                        │    TournamentResult, Game      │
-                        │  · ChessclubError hierarchy    │
-                        └────────────────────────────────┘
+       ┌────────────▼──────────┐  ┌─────────────────────────┐
+       │  auth/                │  │  services/              │
+       │  · AuthProvider (ABC) │  │  · ClubService          │
+       │  · AuthCredentials    │  │  · LeaderboardService   │
+       │  · credentials store  │  │  · RatingHistoryService │
+       └───────────────────────┘  │  · MatchupService       │
+                                  │  (core only)            │
+                                  └──────────┬──────────────┘
+                                             │ imports
+                        ┌────────────────────▼─────────────┐
+                        │  core/  (zero project imports)    │
+                        │  · ChessProvider (ABC)            │
+                        │  · Club, Member, Tournament,      │
+                        │    TournamentResult, Game,         │
+                        │    PlayerStats, RatingSnapshot,    │
+                        │    Matchup                         │
+                        │  · ChessclubError hierarchy        │
+                        └───────────────────────────────────┘
 ```
 
 **Dependency rule:** `core/` imports nothing from this project. `services/`
@@ -333,7 +355,8 @@ src/
 ├── chessclub/
 │   ├── core/
 │   │   ├── interfaces.py     # ChessProvider ABC
-│   │   ├── models.py         # Club, Member, Tournament, TournamentResult, Game
+│   │   ├── models.py         # Club, Member, Tournament, TournamentResult, Game,
+│   │   │                     #   PlayerStats, RatingSnapshot, Matchup
 │   │   └── exceptions.py     # ChessclubError, AuthenticationRequiredError
 │   ├── auth/
 │   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials
@@ -344,10 +367,14 @@ src/
 │   │       ├── cache.py      # SQLiteCache + CachedResponse
 │   │       └── client.py     # ChessComClient
 │   └── services/
-│       └── club_service.py   # ClubService
+│       ├── club_service.py            # ClubService
+│       ├── leaderboard_service.py     # LeaderboardService
+│       ├── rating_history_service.py  # RatingHistoryService
+│       └── matchup_service.py         # MatchupService
 └── chessclub_cli/
     └── main.py               # Typer CLI (composition root)
 docs/
+├── features.md               # Detailed feature reference
 ├── usage.md                  # Full user guide with example outputs
 ├── cache.md                  # Cache design and TTL policy
 └── roadmap.md                # Development roadmap
@@ -385,9 +412,10 @@ pytest tests/ -v
 - [x] `club games` — tournament games ranked by Stockfish accuracy
 - [x] Disk cache — SQLite-backed, `~/.cache/chessclub/cache.db`; `chessclub cache stats/clear`
 - [x] Clickable game hyperlinks in terminal output
-- [ ] `club leaderboard <slug> --year` — annual points aggregation
+- [x] `club leaderboard <slug> --year` — annual/monthly points aggregation
+- [x] `player rating-history <username> --club <slug>` — rating evolution across tournaments
+- [x] `club matchups <slug>` — head-to-head win/loss/draw table
 - [ ] Player aliases — group multiple usernames under one identity
-- [ ] Head-to-head matchup table
 
 See [docs/roadmap.md](docs/roadmap.md) for the full plan.
 

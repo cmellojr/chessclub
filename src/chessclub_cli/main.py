@@ -43,10 +43,12 @@ app = typer.Typer()
 club_app = typer.Typer()
 auth_app = typer.Typer(help="Manage Chess.com authentication.")
 cache_app = typer.Typer(help="Manage the API response cache.")
+player_app = typer.Typer(help="Player-specific analytics.")
 
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
 app.add_typer(cache_app, name="cache")
+app.add_typer(player_app, name="player")
 
 console = Console(legacy_windows=False)
 
@@ -556,7 +558,9 @@ def tournaments(
         try:
             with console.status("[dim]Fetching games…[/dim]", spinner="dots"):
                 t_results = service.get_tournament_results(
-                    tournament.id, tournament_type=tournament.tournament_type
+                    tournament.id,
+                    tournament_type=tournament.tournament_type,
+                    tournament_url=tournament.url,
                 )
                 game_data = service.get_tournament_games(tournament)
         except AuthenticationRequiredError as e:
@@ -648,7 +652,9 @@ def tournaments(
             for row, t in zip(rows, data):
                 try:
                     results = service.get_tournament_results(
-                        t.id, tournament_type=t.tournament_type
+                        t.id,
+                        tournament_type=t.tournament_type,
+                        tournament_url=t.url,
                     )
                     row["results"] = [asdict(r) for r in results]
                 except AuthenticationRequiredError as e:
@@ -704,7 +710,9 @@ def tournaments(
                 console.rule(f"[bold]{t.name}[/bold]")
                 try:
                     results = service.get_tournament_results(
-                        t.id, tournament_type=t.tournament_type
+                        t.id,
+                        tournament_type=t.tournament_type,
+                        tournament_url=t.url,
                     )
                 except AuthenticationRequiredError as e:
                     console.print(
@@ -955,6 +963,207 @@ def leaderboard(
         console.print(table)
         console.print(
             f"[dim]{len(data)} players · {period_label}[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
+# matchups command
+# ---------------------------------------------------------------------------
+
+
+@club_app.command()
+def matchups(
+    slug: str,
+    last_n: int = typer.Option(
+        5,
+        "--last-n",
+        help=(
+            "Scan only the N most recent tournaments. "
+            "Use 0 to scan all tournaments."
+        ),
+    ),
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Show head-to-head records between club members.
+
+    Fetches games from the last N tournaments and tallies
+    win/loss/draw results for every pair of players who have
+    faced each other.  Requires authentication.
+
+    Examples:
+
+        chessclub club matchups my-club
+
+        chessclub club matchups my-club --last-n 10
+
+        chessclub club matchups my-club --last-n 0  # all
+    """
+    from chessclub.services.matchup_service import MatchupService
+
+    try:
+        service = _get_service()
+        ms = MatchupService(service.provider)
+        n = last_n if last_n > 0 else None
+        scope = f"last {last_n}" if n else "all"
+        with console.status(
+            f"[dim]Fetching matchups ({scope} tournaments)…[/dim]",
+            spinner="dots",
+        ):
+            data = ms.get_matchups(slug, last_n=n)
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    if not data:
+        console.print(
+            "[yellow]No matchup data found.[/yellow]"
+        )
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(m) for m in data], indent=2))
+
+    elif output == OutputFormat.csv:
+        _fields = [
+            "player_a", "player_b", "wins_a", "wins_b",
+            "draws", "total_games", "last_played",
+        ]
+        print(_to_csv([asdict(m) for m in data], _fields), end="")
+
+    else:
+        table = Table(
+            title=f"Head-to-Head — {slug}",
+            show_lines=False,
+        )
+        table.add_column("Player A", style="cyan")
+        table.add_column("W", justify="right")
+        table.add_column("D", justify="right", style="dim")
+        table.add_column("W", justify="right")
+        table.add_column("Player B", style="cyan")
+        table.add_column("Total", justify="right", style="bold")
+
+        for m in data:
+            table.add_row(
+                m.player_a,
+                str(m.wins_a),
+                str(m.draws),
+                str(m.wins_b),
+                m.player_b,
+                str(m.total_games),
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(data)} matchups · "
+            f"{scope} tournaments[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
+# player commands
+# ---------------------------------------------------------------------------
+
+
+@player_app.command(name="rating-history")
+def rating_history(
+    username: str,
+    club: str = typer.Option(
+        ...,
+        "--club",
+        "-c",
+        help="Club slug to scope the history to.",
+    ),
+    last_n: int | None = typer.Option(
+        None,
+        "--last-n",
+        help=(
+            "Only scan the N most recent tournaments. "
+            "Omit to scan all tournaments."
+        ),
+    ),
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Show a player's rating evolution across club tournaments.
+
+    For each tournament the player participated in, displays
+    their rating, finishing position, and score.  Requires
+    authentication.
+
+    Examples:
+
+        chessclub player rating-history joaosilva -c my-club
+
+        chessclub player rating-history joaosilva -c my-club --last-n 10
+    """
+    from chessclub.services.rating_history_service import (
+        RatingHistoryService,
+    )
+
+    try:
+        service = _get_service()
+        rhs = RatingHistoryService(service.provider)
+        scope = f"last {last_n}" if last_n else "all"
+        with console.status(
+            f"[dim]Fetching rating history for {username} "
+            f"({scope} tournaments)…[/dim]",
+            spinner="dots",
+        ):
+            data = rhs.get_rating_history(
+                club, username, last_n=last_n
+            )
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    if not data:
+        console.print(
+            f"[yellow]No tournament data found for "
+            f"{username} in {club}.[/yellow]"
+        )
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(s) for s in data], indent=2))
+
+    elif output == OutputFormat.csv:
+        _fields = [
+            "tournament_id", "tournament_name",
+            "tournament_type", "tournament_date",
+            "rating", "position", "score",
+        ]
+        print(_to_csv([asdict(s) for s in data], _fields), end="")
+
+    else:
+        table = Table(
+            title=f"Rating History — {username} @ {club}",
+            show_lines=False,
+        )
+        table.add_column("#", justify="right", style="dim", width=4)
+        table.add_column("Tournament")
+        table.add_column("Type", style="dim")
+        table.add_column("Date", justify="right")
+        table.add_column("Rating", justify="right", style="bold")
+        table.add_column("Pos", justify="right")
+        table.add_column("Score", justify="right")
+
+        for i, s in enumerate(data, 1):
+            table.add_row(
+                str(i),
+                s.tournament_name,
+                s.tournament_type,
+                _fmt_date(s.tournament_date),
+                str(s.rating) if s.rating else "—",
+                str(s.position),
+                f"{s.score:.1f}" if s.score is not None else "—",
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(data)} tournaments · {username}[/dim]"
         )
 
 
