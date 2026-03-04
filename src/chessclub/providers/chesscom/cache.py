@@ -59,6 +59,12 @@ class SQLiteCache:
     _DB_PATH: Path = Path.home() / ".cache" / "chessclub" / "cache.db"
 
     def __init__(self, path: Path | None = None):
+        """Initialise the cache, creating the database if needed.
+
+        Args:
+            path: Path to the SQLite database file.  Falls
+                back to :attr:`_DB_PATH` when ``None``.
+        """
         self._path = path or self._DB_PATH
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,11 +77,17 @@ class SQLiteCache:
     # ------------------------------------------------------------------
 
     def _connect(self) -> sqlite3.Connection:
+        """Open a connection with WAL journal mode enabled.
+
+        Returns:
+            A :class:`sqlite3.Connection` to the cache database.
+        """
         conn = sqlite3.connect(str(self._path), timeout=5)
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
     def _init_db(self) -> None:
+        """Create the cache table and expiry index if absent."""
         with self._connect() as conn:
             conn.execute(
                 """
@@ -92,6 +104,11 @@ class SQLiteCache:
             )
 
     def _delete(self, key: str) -> None:
+        """Remove a single entry by *key*, ignoring errors.
+
+        Args:
+            key: The cache key to delete.
+        """
         try:
             with self._connect() as conn:
                 conn.execute("DELETE FROM cache WHERE key = ?", (key,))
@@ -222,6 +239,11 @@ class CachedResponse:
     status_code: int = 200
 
     def __init__(self, body: dict):
+        """Initialise the stub with a cached response body.
+
+        Args:
+            body: The JSON response body dict.
+        """
         self._body = body
 
     def json(self) -> dict:
