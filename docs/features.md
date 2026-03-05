@@ -10,32 +10,24 @@ each one works internally, and what to expect from the output.
 Most club-data endpoints on Chess.com require a valid session. The `auth`
 group manages credentials locally under `~/.config/chessclub/`.
 
-### `chessclub auth setup`
-
-Saves Chess.com session cookies (cookie-based auth).
-
-**How it works**
-
-1. Opens Chess.com in the browser so you can log in normally.
-2. You install the `chessclub Cookie Helper` Chrome extension (load unpacked
-   from `tools/chessclub-cookie-helper/`) and click its icon to copy the
-   `ACCESS_TOKEN` and `PHPSESSID` values.
-3. Paste both values when prompted.
-4. Makes a test request against the public API to validate the cookies.
-5. Writes `~/.config/chessclub/credentials.json` (mode `0o600`).
-
-**Notes**
-
-- `ACCESS_TOKEN` typically expires within 24 hours. Re-run `auth setup` when
-  commands start returning authentication errors.
-- Cookie-based auth is the fallback when OAuth is not configured.
-
----
-
-### `chessclub auth login`
+### `chessclub auth login` — OAuth 2.0 (recommended)
 
 Authenticates via **OAuth 2.0 PKCE + Loopback** (RFC 8252). Requires a
-Chess.com developer `client_id`.
+personal `client_id` issued by Chess.com.
+
+**Prerequisites**
+
+Each user must request their own `client_id`:
+
+1. Join the [Chess.com Developer Community](https://www.chess.com/club/chess-com-developer-community).
+2. Submit the [OAuth Application Form](https://forms.gle/RwGLuZkwDysCj2GV7)
+   (app name, redirect URI `http://localhost`, description).
+3. Chess.com reviews the request and provides a **Client ID**.
+4. Set `CHESSCOM_CLIENT_ID` in the environment (add to your shell profile for
+   persistence).
+
+See [Applying for OAuth access](https://www.chess.com/clubs/forum/view/guide-applying-for-oauth-access)
+for the full guide.
 
 **How it works**
 
@@ -46,7 +38,33 @@ Chess.com developer `client_id`.
 4. Writes `~/.config/chessclub/oauth_token.json` (mode `0o600`).
 
 Access tokens are automatically refreshed when they are within 60 seconds of
-expiry. Set `CHESSCOM_CLIENT_ID` in the environment before running this command.
+expiry.
+
+> **Security:** your `client_id` is personal. Never commit it to the
+> repository.
+
+---
+
+### `chessclub auth setup` — Cookie fallback
+
+Saves Chess.com session cookies. Use this if you have not yet received your
+`client_id`.
+
+**How it works**
+
+1. Install the `chessclub Cookie Helper` Chrome extension (load unpacked
+   from `tools/chessclub-cookie-helper/`).
+2. Log in to Chess.com and click the extension icon to copy `ACCESS_TOKEN`
+   and `PHPSESSID`.
+3. Run `chessclub auth setup` and paste both values when prompted.
+4. Makes a test request against the public API to validate the cookies.
+5. Writes `~/.config/chessclub/credentials.json` (mode `0o600`).
+
+**Notes**
+
+- `ACCESS_TOKEN` typically expires within 24 hours. Re-run `auth setup` when
+  commands start returning authentication errors.
+- Cookie-based auth is the fallback when OAuth is not configured.
 
 ---
 

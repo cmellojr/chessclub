@@ -14,7 +14,6 @@ import re
 import sys
 import textwrap
 import time
-import webbrowser
 from dataclasses import asdict
 from datetime import datetime, timezone
 from enum import Enum
@@ -54,7 +53,7 @@ console = Console(legacy_windows=False)
 
 _USER_AGENT = "Chessclub/0.1 (contact: cmellojr@gmail.com)"
 _VALIDATION_CLUB = "chess-com-developer-community"
-_CLIENT_ID = os.getenv("CHESSCOM_CLIENT_ID", "")
+_ENV_CLIENT_ID = "CHESSCOM_CLIENT_ID"
 
 
 # ---------------------------------------------------------------------------
@@ -75,18 +74,40 @@ class OutputFormat(str, Enum):
 # ---------------------------------------------------------------------------
 
 
+def _resolve_client_id() -> str:
+    """Resolve the OAuth client ID from available sources.
+
+    Resolution order:
+
+    1. ``CHESSCOM_CLIENT_ID`` environment variable (allows override).
+    2. ``client_id`` stored in ``oauth_token.json`` (persisted after
+       ``auth login``).
+
+    Returns:
+        The client ID string, or an empty string if unavailable.
+    """
+    env_id = os.getenv(_ENV_CLIENT_ID, "")
+    if env_id:
+        return env_id
+    token = creds_store.load_oauth_token()
+    if token and token.get("client_id"):
+        return token["client_id"]
+    return ""
+
+
 def _get_service() -> ClubService:
     """Build and return a ClubService backed by the Chess.com provider.
 
-    Prefers OAuth 2.0 when a ``CHESSCOM_CLIENT_ID`` is set and an OAuth token
+    Prefers OAuth 2.0 when a client ID is available and an OAuth token
     file exists; falls back to :class:`ChessComCookieAuth` otherwise.
 
     Returns:
         A :class:`~chessclub.services.club_service.ClubService` instance.
     """
-    if _CLIENT_ID and creds_store.load_oauth_token():
+    client_id = _resolve_client_id()
+    if client_id and creds_store.load_oauth_token():
         auth: ChessComCookieAuth | ChessComOAuth = ChessComOAuth(
-            client_id=_CLIENT_ID
+            client_id=client_id
         )
     else:
         auth = ChessComCookieAuth()
@@ -197,22 +218,39 @@ def setup():
 @auth_app.command()
 def login():
     """Authenticate via OAuth 2.0 PKCE (requires Chess.com developer access)."""
-    if not _CLIENT_ID:
-        console.print("[red]CHESSCOM_CLIENT_ID is not set.[/red]")
+    client_id = _resolve_client_id()
+    if not client_id:
         console.print(
-            "Obtain a client ID by applying for Chess.com developer access,\n"
-            "then set the environment variable and re-run:\n"
-            "  export CHESSCOM_CLIENT_ID=<your-client-id>"
+            "[red]No client_id found.[/red]\n"
+        )
+        console.print(
+            "Each user must obtain their own client_id "
+            "from Chess.com:\n"
+        )
+        console.print(
+            "  1. Join the Chess.com Developer Community\n"
+            "     https://www.chess.com/club/"
+            "chess-com-developer-community\n"
+            "  2. Submit the OAuth Application Form\n"
+            "     https://forms.gle/RwGLuZkwDysCj2GV7\n"
+            "  3. Set the environment variable:\n"
+            "     [bold]export CHESSCOM_CLIENT_ID="
+            "<your-client-id>[/bold]\n"
+            "  4. Re-run [bold]chessclub auth login[/bold]"
         )
         raise typer.Exit(1)
     try:
-        ChessComOAuth.run_login_flow(client_id=_CLIENT_ID)
+        ChessComOAuth.run_login_flow(client_id=client_id)
     except requests.RequestException as e:
         console.print(f"[red]Token exchange failed:[/red] {e}")
         raise typer.Exit(1)
     console.print(
         f"[green]✓ Logged in. Token saved to:[/green] "
         f"{creds_store.oauth_token_path()}"
+    )
+    console.print(
+        "[dim]The client_id was saved with the token — "
+        "no need to set the environment variable again.[/dim]"
     )
 
 
@@ -252,9 +290,10 @@ def status():
         )
 
     # Validate whichever auth method is active.
+    client_id = _resolve_client_id()
     active_auth: ChessComCookieAuth | ChessComOAuth = (
-        ChessComOAuth(client_id=_CLIENT_ID)
-        if _CLIENT_ID and oauth_token
+        ChessComOAuth(client_id=client_id)
+        if client_id and oauth_token
         else cookie_auth
     )
 
