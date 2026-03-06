@@ -73,9 +73,10 @@ Waiting for authorization on http://localhost:54321 ...
 
 Tokens auto-refresh; you should not need to log in again.
 
-### Method 2 — Cookies (fallback)
+### Method 2 — Cookies (session)
 
-Use this if you have not yet received your `client_id`.
+Required for commands that use Chess.com internal endpoints (`club tournaments`,
+`club games`, `club matchups`). These endpoints only accept session cookies.
 
 **Prerequisite:** install the `chessclub Cookie Helper` Chrome extension by
 loading it unpacked from `tools/chessclub-cookie-helper/`.

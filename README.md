@@ -67,7 +67,7 @@ chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
 
 | Command | Description |
 |---|---|
-| `chessclub auth setup` | Cookie fallback: save `ACCESS_TOKEN` + `PHPSESSID` from the Cookie Helper extension |
+| `chessclub auth setup` | Save Chess.com session cookies from the Cookie Helper extension |
 | `chessclub auth login` | OAuth 2.0 PKCE browser flow — tokens auto-refresh |
 | `chessclub auth status` | Show configured credentials and validate them |
 | `chessclub auth clear` | Remove all saved credentials |
@@ -260,9 +260,9 @@ Some Chess.com endpoints require authentication. `chessclub` handles credentials
 as a **separate layer** from the provider — the provider never knows how
 credentials are obtained or stored.
 
-Two methods are available. **OAuth 2.0 is preferred** because tokens refresh
-automatically; cookie auth is the fallback for users who have not yet obtained a
-`client_id`.
+Two complementary methods are available. Both are needed for full functionality:
+OAuth 2.0 handles token-based authentication (auto-refresh), while cookies are
+required for Chess.com internal endpoints used by tournament and game commands.
 
 ### Method 1 — OAuth 2.0 PKCE (`auth login`) — recommended
 
@@ -319,10 +319,10 @@ automatically — you should not need to log in again.
 - [Getting started with Chess.com OAuth 2.0](https://chesscom.notion.site/Getting-started-with-Chess-com-OAuth-2-0-Server-5958e57c8c934a3aa7abda2d670969e8)
   (Notion — available after approval)
 
-### Method 2 — Cookie fallback (`auth setup`)
+### Method 2 — Cookie session (`auth setup`)
 
-Use this method if you have not yet received your `client_id`, or if OAuth
-is not working for your use case.
+Required for commands that use Chess.com internal endpoints (`club tournaments`,
+`club games`, `club matchups`). These endpoints only accept session cookies.
 
 ```bash
 chessclub auth setup

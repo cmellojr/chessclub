@@ -1,9 +1,8 @@
 # chessclub Cookie Helper
 
-> **⚠️ Temporary developer tool.**
-> This Chrome extension exists only to simplify cookie extraction during development,
-> while OAuth 2.0 (`chessclub auth login`) awaits Chess.com `client_id` approval.
-> **It will be removed from the repository once the OAuth flow is fully operational.**
+> Companion Chrome extension for `chessclub auth setup`.
+> Extracts `ACCESS_TOKEN` and `PHPSESSID` session cookies from Chess.com
+> so you can paste them directly — no DevTools needed.
 
 ---
 
@@ -46,13 +45,3 @@ To pin it: click the puzzle-piece icon in the toolbar → pin **chessclub Cookie
 
 ---
 
-## Removal
-
-When `chessclub auth login` is working (OAuth 2.0 with a valid `CHESSCOM_CLIENT_ID`):
-
-1. Go to `chrome://extensions/` and remove the extension
-2. Delete this directory from the repository:
-   ```bash
-   git rm -r tools/chessclub-cookie-helper/
-   git commit -m "Remove cookie helper extension (OAuth now active)"
-   ```

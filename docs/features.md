@@ -45,10 +45,10 @@ expiry.
 
 ---
 
-### `chessclub auth setup` — Cookie fallback
+### `chessclub auth setup` — Cookie session
 
-Saves Chess.com session cookies. Use this if you have not yet received your
-`client_id`.
+Saves Chess.com session cookies. Required for commands that access Chess.com
+internal endpoints (`club tournaments`, `club games`, `club matchups`).
 
 **How it works**
 
@@ -64,7 +64,8 @@ Saves Chess.com session cookies. Use this if you have not yet received your
 
 - `ACCESS_TOKEN` typically expires within 24 hours. Re-run `auth setup` when
   commands start returning authentication errors.
-- Cookie-based auth is the fallback when OAuth is not configured.
+- Cookie-based auth is required for commands that access Chess.com internal
+  endpoints, even when OAuth is configured.
 
 ---
 

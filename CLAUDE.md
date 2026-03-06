@@ -160,7 +160,7 @@ chessclub
 │         --club <slug> [--last-n N]
 ├── auth
 │   ├── login                           # OAuth 2.0 PKCE + loopback; tokens auto-refresh
-│   ├── setup                           # Cookie fallback: Cookie Helper extension
+│   ├── setup                           # Cookie session: Cookie Helper extension
 │   ├── status                          # Shows token + session; validates active method
 │   └── clear                           # Removes credentials.json AND oauth_token.json
 └── cache
