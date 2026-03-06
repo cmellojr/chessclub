@@ -13,7 +13,16 @@
       "Bash(chessclub cache stats:*)",
       "Bash(chessclub cache clear:*)",
       "Bash(chessclub --help:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(pip install:*)",
+      "Bash(chessclub auth status:*)",
+      "WebFetch(domain:support.chess.com)",
+      "WebFetch(domain:publicapi.dev)",
+      "WebFetch(domain:chessnerd.net)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:chesscom.notion.site)"
     ]
   }
 }

@@ -289,40 +289,57 @@ def status():
             f"{cookie_auth.credential_source()}"
         )
 
-    # Validate whichever auth method is active.
+    # Validate the active auth method.
     client_id = _resolve_client_id()
-    active_auth: ChessComCookieAuth | ChessComOAuth = (
-        ChessComOAuth(client_id=client_id)
-        if client_id and oauth_token
-        else cookie_auth
-    )
+    use_oauth = bool(client_id and oauth_token)
 
-    console.print("[dim]Validating with Chess.com...[/dim]")
-    try:
-        client = ChessComClient(user_agent=_USER_AGENT, auth=active_auth)
-        club = client.get_club(_VALIDATION_CLUB)
-        # Verify session cookies against the internal API (requires auth).
-        # get_club() only calls the public API and always succeeds, so we
-        # must hit at least one authenticated endpoint to confirm validity.
-        if club.provider_id:
-            r = client.session.get(
-                f"{ChessComClient.WEB_BASE_URL}/callback/clubs/live/past"
-                f"/{club.provider_id}",
-                params={"page": 1},
+    if use_oauth:
+        # OAuth tokens are validated locally — the /callback/ endpoints
+        # only accept session cookies, not Bearer tokens, so a network
+        # check would always fail.
+        oauth_auth = ChessComOAuth(client_id=client_id)
+        if oauth_auth.is_authenticated():
+            console.print(
+                "[green]✓ OAuth token is valid (local check).[/green]"
             )
-            if r.status_code == 401:
-                raise AuthenticationRequiredError(
-                    "Session cookies are expired or invalid."
+        else:
+            console.print("[red]✗ OAuth token expired or invalid.[/red]")
+            console.print(
+                "Run [bold]chessclub auth login[/bold] to renew."
+            )
+            raise typer.Exit(1)
+    else:
+        # Cookie session — validate against an authenticated endpoint.
+        console.print("[dim]Validating with Chess.com...[/dim]")
+        try:
+            client = ChessComClient(
+                user_agent=_USER_AGENT, auth=cookie_auth
+            )
+            club = client.get_club(_VALIDATION_CLUB)
+            if club.provider_id:
+                r = client.session.get(
+                    f"{ChessComClient.WEB_BASE_URL}"
+                    f"/callback/clubs/live/past"
+                    f"/{club.provider_id}",
+                    params={"page": 1},
                 )
-            r.raise_for_status()
-        console.print("[green]✓ Active credentials are valid.[/green]")
-    except AuthenticationRequiredError:
-        console.print("[red]✗ Credentials expired or invalid.[/red]")
-        console.print(
-            "Run [bold]chessclub auth login[/bold] or "
-            "[bold]chessclub auth setup[/bold] to renew."
-        )
-        raise typer.Exit(1)
+                if r.status_code == 401:
+                    raise AuthenticationRequiredError(
+                        "Session cookies are expired or invalid."
+                    )
+                r.raise_for_status()
+            console.print(
+                "[green]✓ Active credentials are valid.[/green]"
+            )
+        except AuthenticationRequiredError:
+            console.print(
+                "[red]✗ Credentials expired or invalid.[/red]"
+            )
+            console.print(
+                "Run [bold]chessclub auth login[/bold] or "
+                "[bold]chessclub auth setup[/bold] to renew."
+            )
+            raise typer.Exit(1)
 
 
 @auth_app.command()
