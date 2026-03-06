@@ -35,7 +35,48 @@ $ chessclub --help
 
 Most commands require Chess.com credentials. There are two methods.
 
-### Method 1 — Cookies (recommended)
+### Method 1 — OAuth 2.0 (recommended)
+
+OAuth tokens refresh automatically — you log in once and forget about it.
+
+**Step 1: get your `client_id`**
+
+1. Join the [Chess.com Developer Community](https://www.chess.com/club/chess-com-developer-community).
+2. Submit the [OAuth Application Form](https://forms.gle/RwGLuZkwDysCj2GV7)
+   (app name, redirect URI `http://localhost`, description).
+3. Chess.com reviews the request and sends you a **Client ID**.
+
+See the full guide: [Applying for OAuth access](https://www.chess.com/clubs/forum/view/guide-applying-for-oauth-access).
+
+> Your `client_id` is personal — **do not commit it** to any repository.
+
+**Step 2: set the environment variable**
+
+```bash
+# Linux / macOS — add to ~/.bashrc or ~/.zshrc
+export CHESSCOM_CLIENT_ID="your-client-id-here"
+
+# Windows (PowerShell) — add to $PROFILE
+$env:CHESSCOM_CLIENT_ID = "your-client-id-here"
+```
+
+**Step 3: log in**
+
+```
+$ chessclub auth login
+
+Opening Chess.com authorization page in the browser...
+Waiting for authorization on http://localhost:54321 ...
+
+✓ Tokens saved to ~/.config/chessclub/oauth_token.json
+```
+
+Tokens auto-refresh; you should not need to log in again.
+
+### Method 2 — Cookies (session)
+
+Required for commands that use Chess.com internal endpoints (`club tournaments`,
+`club games`, `club matchups`). These endpoints only accept session cookies.
 
 **Prerequisite:** install the `chessclub Cookie Helper` Chrome extension by
 loading it unpacked from `tools/chessclub-cookie-helper/`.
@@ -43,8 +84,11 @@ loading it unpacked from `tools/chessclub-cookie-helper/`.
 ```
 $ chessclub auth setup
 
-Opening https://www.chess.com in the browser...
-Log in and click the extension icon in the browser toolbar.
+chessclub Cookie Helper — How to use:
+
+  1. Install the extension (load unpacked from tools/chessclub-cookie-helper/)
+  2. Log in to Chess.com and click the extension icon
+  3. Copy the ACCESS_TOKEN and PHPSESSID values
 
 Paste ACCESS_TOKEN: ****
 Paste PHPSESSID   : ****
@@ -52,17 +96,8 @@ Paste PHPSESSID   : ****
 ✓ Credentials saved to ~/.config/chessclub/credentials.json
 ```
 
-### Method 2 — OAuth 2.0 (when available)
-
-```
-$ chessclub auth login
-```
-
-Opens the browser, completes the PKCE flow, and saves tokens to
-`~/.config/chessclub/oauth_token.json`. Tokens refresh automatically.
-
-> **Note:** requires `CHESSCOM_CLIENT_ID` set in the environment. A Chess.com
-> developer application approval is pending.
+> `ACCESS_TOKEN` expires in ~24 hours. Re-run `auth setup` when commands
+> return authentication errors.
 
 ### Credential status
 

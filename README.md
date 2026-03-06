@@ -67,7 +67,7 @@ chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
 
 | Command | Description |
 |---|---|
-| `chessclub auth setup` | Cookie fallback: save `ACCESS_TOKEN` + `PHPSESSID` from the Cookie Helper extension |
+| `chessclub auth setup` | Save Chess.com session cookies from the Cookie Helper extension |
 | `chessclub auth login` | OAuth 2.0 PKCE browser flow — tokens auto-refresh |
 | `chessclub auth status` | Show configured credentials and validate them |
 | `chessclub auth clear` | Remove all saved credentials |
@@ -260,7 +260,69 @@ Some Chess.com endpoints require authentication. `chessclub` handles credentials
 as a **separate layer** from the provider — the provider never knows how
 credentials are obtained or stored.
 
-### Cookie fallback (`auth setup`) — recommended
+Two complementary methods are available. Both are needed for full functionality:
+OAuth 2.0 handles token-based authentication (auto-refresh), while cookies are
+required for Chess.com internal endpoints used by tournament and game commands.
+
+### Method 1 — OAuth 2.0 PKCE (`auth login`) — recommended
+
+Implements the Authorization Code + PKCE flow with a Loopback Local Server
+(RFC 8252). Tokens auto-refresh — no manual re-authentication needed.
+
+#### Obtaining your `client_id`
+
+Each user must request their own `client_id` from Chess.com. The ID is
+personal and **must never be committed to the repository**.
+
+1. Join the [Chess.com Developer Community](https://www.chess.com/club/chess-com-developer-community).
+2. Fill out the [OAuth Application Form](https://forms.gle/RwGLuZkwDysCj2GV7)
+   with the following details:
+   - **Application name:** a name for your app (e.g. `chessclub-cli`)
+   - **Redirect URI:** `http://localhost` (the CLI uses a loopback server on a
+     random port — Chess.com accepts any `localhost` redirect)
+   - **Description:** brief description of how you use the API
+3. Chess.com will review and create an OAuth client for you. You will receive a
+   **Client ID** (and optionally a Client Secret, which `chessclub` does not
+   use — PKCE replaces it).
+4. Set the environment variable before running the CLI:
+
+```bash
+# Linux / macOS
+export CHESSCOM_CLIENT_ID="your-client-id-here"
+
+# Windows (PowerShell)
+$env:CHESSCOM_CLIENT_ID = "your-client-id-here"
+
+# Windows (cmd)
+set CHESSCOM_CLIENT_ID=your-client-id-here
+```
+
+> **Tip:** add the `export` / `$env:` line to your shell profile
+> (`~/.bashrc`, `~/.zshrc`, PowerShell `$PROFILE`) so it persists across
+> sessions.
+
+5. Run the login flow:
+
+```bash
+chessclub auth login
+```
+
+The browser opens the Chess.com authorisation page. After you approve, a
+loopback server captures the code and exchanges it for tokens. The access
+token is saved to `~/.config/chessclub/oauth_token.json` and refreshes
+automatically — you should not need to log in again.
+
+#### Official documentation
+
+- [Guide: Applying for OAuth access](https://www.chess.com/clubs/forum/view/guide-applying-for-oauth-access)
+  (Chess.com Developer Community forum)
+- [Getting started with Chess.com OAuth 2.0](https://chesscom.notion.site/Getting-started-with-Chess-com-OAuth-2-0-Server-5958e57c8c934a3aa7abda2d670969e8)
+  (Notion — available after approval)
+
+### Method 2 — Cookie session (`auth setup`)
+
+Required for commands that use Chess.com internal endpoints (`club tournaments`,
+`club games`, `club matchups`). These endpoints only accept session cookies.
 
 ```bash
 chessclub auth setup
@@ -277,15 +339,6 @@ then paste them when prompted.
 | `PHPSESSID` | Session |
 
 Re-run `auth setup` when commands return authentication errors.
-
-### OAuth 2.0 PKCE (`auth login`)
-
-Implements the Authorization Code + PKCE flow with a Loopback Local Server
-(RFC 8252). Tokens auto-refresh — no manual re-authentication needed.
-
-> **Note:** requires `CHESSCOM_CLIENT_ID` set in the environment. The OAuth
-> implementation is complete; a Chess.com developer application approval is
-> pending.
 
 ### Credential resolution order
 

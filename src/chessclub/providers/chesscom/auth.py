@@ -356,6 +356,7 @@ class ChessComOAuth(AuthProvider):
             refresh_token=token_data.get("refresh_token"),
             expires_at=expires_at,
             scope=token_data.get("scope"),
+            client_id=client_id,
         )
 
     # -------------------------
@@ -405,10 +406,12 @@ class ChessComOAuth(AuthProvider):
             ),
             "expires_at": expires_at,
             "scope": token_data.get("scope", self._token.get("scope")),
+            "client_id": self._client_id,
         }
         _save_oauth_token(
             access_token=self._token["access_token"],
             refresh_token=self._token["refresh_token"],
             expires_at=expires_at,
             scope=self._token["scope"],
+            client_id=self._client_id,
         )
