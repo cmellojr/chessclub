@@ -71,6 +71,7 @@ class ClubService:
         self,
         tournament_id: str,
         tournament_type: str = "arena",
+        tournament_url: str | None = None,
     ) -> list[TournamentResult]:
         """Return per-player standings for a finished tournament.
 
@@ -79,12 +80,16 @@ class ClubService:
             tournament_type: Either ``"swiss"`` or ``"arena"`` (default).
                 Passed to the provider to select the correct leaderboard
                 endpoint.
+            tournament_url: Optional public-API slug for fallback
+                standings data.
 
         Returns:
             A list of :class:`TournamentResult` instances.
         """
         return self.provider.get_tournament_results(
-            tournament_id, tournament_type=tournament_type
+            tournament_id,
+            tournament_type=tournament_type,
+            tournament_url=tournament_url,
         )
 
     def find_tournaments_by_name_or_id(
