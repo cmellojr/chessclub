@@ -377,9 +377,11 @@ JSON and CSV outputs are machine-readable and bypass all Rich formatting.
 
 ## Active auth method selection
 
-The CLI automatically picks the best available authentication method:
+The CLI always uses **cookie session** as the base authentication (required for
+internal `/callback/` endpoints). When OAuth is also configured, the Bearer
+header is layered on top of the session:
 
-1. **OAuth 2.0** — when `CHESSCOM_CLIENT_ID` is set **and**
-   `~/.config/chessclub/oauth_token.json` exists. Tokens auto-refresh.
-2. **Cookie session** — otherwise (env vars `CHESSCOM_ACCESS_TOKEN` /
-   `CHESSCOM_PHPSESSID`, or `~/.config/chessclub/credentials.json`).
+- **Cookie session** — always active (env vars `CHESSCOM_ACCESS_TOKEN` /
+  `CHESSCOM_PHPSESSID`, or `~/.config/chessclub/credentials.json`).
+- **OAuth 2.0** — additionally layered when `CHESSCOM_CLIENT_ID` is set **and**
+  `~/.config/chessclub/oauth_token.json` exists. Tokens auto-refresh.

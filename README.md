@@ -340,15 +340,17 @@ then paste them when prompted.
 
 Re-run `auth setup` when commands return authentication errors.
 
-### Credential resolution order
+### How credentials are applied
+
+Cookie session is **always** used as the base (required for internal
+`/callback/` endpoints). OAuth Bearer header is layered on top when available:
 
 ```
-1. OAuth 2.0 token    ~/.config/chessclub/oauth_token.json   ← preferred
-2. Environment vars   CHESSCOM_ACCESS_TOKEN + CHESSCOM_PHPSESSID
-3. Credentials file   ~/.config/chessclub/credentials.json
+Base:   ChessComCookieAuth   env vars or ~/.config/chessclub/credentials.json
+ + if:  ChessComOAuth         CHESSCOM_CLIENT_ID set + oauth_token.json exists
 ```
 
-All files are created with `0o600` permissions.
+All credential files are created with `0o600` permissions.
 
 ---
 
