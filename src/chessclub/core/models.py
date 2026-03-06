@@ -52,8 +52,8 @@ class Member:
     """Unix timestamp of when the member joined the club, or ``None`` if unknown."""
 
     activity: str | None = None
-    """Activity tier reported by the provider: ``"weekly"``, ``"monthly"``,
-    or ``"all_time"``.  ``None`` when not available."""
+    """General platform activity tier (not club-specific): ``"weekly"``,
+    ``"monthly"``, or ``"all_time"``.  ``None`` when not available."""
 
 
 # ----------------------
