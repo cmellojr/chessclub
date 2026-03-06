@@ -168,7 +168,8 @@ $ chessclub club stats clube-de-xadrez-de-jundiai --output json
 
 ### `chessclub club members <slug>`
 
-Lists all club members with their activity tier and join date.
+Lists all club members with their activity tier (general Chess.com usage,
+not club-specific) and join date.
 
 ```
 $ chessclub club members clube-de-xadrez-de-jundiai

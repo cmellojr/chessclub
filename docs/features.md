@@ -141,6 +141,9 @@ chessclub club members clube-de-xadrez-de-jundiai --details
 
 **Activity tiers**
 
+Activity reflects general Chess.com usage (games, puzzles, etc.), not
+participation in club tournaments specifically.
+
 | Tier | Label | Colour |
 |---|---|---|
 | `weekly` | This week | green |

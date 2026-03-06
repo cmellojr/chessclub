@@ -15,7 +15,7 @@
 ## Features
 
 - **Club stats** — name (with country flag), member count, creation date, events played, and description in a clean 80-column layout
-- **Member list with activity tiers** — `This week`, `This month`, or `Inactive` labels with join date; optional `--details` for chess title
+- **Member list with activity tiers** — general Chess.com activity: `This week`, `This month`, or `Inactive` labels with join date; optional `--details` for chess title
 - **Tournament list + standings** — numbered oldest-first (`#1` = oldest, `#N` = newest); `--details` adds per-player standings
 - **Tournament games ranked by accuracy** — `--games <ref>` on `tournaments` fetches all games sorted by Stockfish accuracy; `<ref>` is the list `#`, a partial name, or an exact ID
 - **Clickable game links** — in terminals that support hyperlinks (Windows Terminal, iTerm2), the `view` column opens the game on Chess.com

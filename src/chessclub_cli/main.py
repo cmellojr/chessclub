@@ -105,13 +105,17 @@ def _get_service() -> ClubService:
         A :class:`~chessclub.services.club_service.ClubService` instance.
     """
     client_id = _resolve_client_id()
-    if client_id and creds_store.load_oauth_token():
-        auth: ChessComCookieAuth | ChessComOAuth = ChessComOAuth(
-            client_id=client_id
-        )
-    else:
-        auth = ChessComCookieAuth()
-    provider = ChessComClient(user_agent=_USER_AGENT, auth=auth)
+    use_oauth = client_id and creds_store.load_oauth_token()
+    cookie_auth = ChessComCookieAuth()
+    # Always use cookies as the base auth — /callback/ endpoints
+    # require session cookies and reject OAuth Bearer tokens.
+    provider = ChessComClient(user_agent=_USER_AGENT, auth=cookie_auth)
+    if use_oauth:
+        # Additionally set the OAuth Bearer header for endpoints
+        # that accept it (e.g. auth status validation).
+        oauth_auth = ChessComOAuth(client_id=client_id)
+        oauth_creds = oauth_auth.get_credentials()
+        provider.session.headers.update(oauth_creds.headers)
     return ClubService(provider)
 
 
@@ -485,8 +489,9 @@ def members(
 ):
     """List club members with activity tier and join date.
 
-    Members are grouped by their last-activity tier: 'This week' (active in
-    the past 7 days), 'This month' (past 30 days), or 'Inactive' (longer).
+    Activity reflects general Chess.com usage, not club tournament
+    participation.  Tiers: 'This week' (active on Chess.com in the past
+    7 days), 'This month' (past 30 days), or 'Inactive' (longer).
 
     Use --details to add chess title information (one extra API call per
     member).
