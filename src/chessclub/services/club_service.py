@@ -119,18 +119,27 @@ class ClubService:
         matches.sort(key=lambda t: t.end_date or 0, reverse=True)
         return matches
 
-    def get_tournament_games(self, tournament: Tournament) -> list[Game]:
+    def get_tournament_games(
+        self,
+        tournament: Tournament,
+        results: list[TournamentResult] | None = None,
+    ) -> list[Game]:
         """Return all games played inside a single club tournament.
 
         Args:
             tournament: A :class:`Tournament` instance with valid
                 ``start_date`` and ``end_date``.
+            results: Pre-fetched leaderboard results.  When provided,
+                the provider skips the leaderboard request and uses
+                this list to derive participants.
 
         Returns:
             A list of :class:`Game` instances ordered best-to-worst by
             average Stockfish accuracy.
         """
-        return self.provider.get_tournament_games(tournament)
+        return self.provider.get_tournament_games(
+            tournament, results=results
+        )
 
     def get_club_games(
         self, slug: str, last_n: int | None = None

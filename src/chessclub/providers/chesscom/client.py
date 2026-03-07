@@ -393,7 +393,11 @@ class ChessComClient(ChessProvider):
                 for p in players_sorted
             ]
 
-    def get_tournament_games(self, tournament: Tournament) -> list[Game]:
+    def get_tournament_games(
+        self,
+        tournament: Tournament,
+        results: list[TournamentResult] | None = None,
+    ) -> list[Game]:
         """Return all games played inside a single club tournament.
 
         Resolves the tournament's participant set via the leaderboard
@@ -411,6 +415,8 @@ class ChessComClient(ChessProvider):
         Args:
             tournament: A :class:`~chessclub.core.models.Tournament`
                 instance with valid ``start_date`` and ``end_date``.
+            results: Pre-fetched tournament results.  When provided,
+                skips the internal ``get_tournament_results()`` call.
 
         Returns:
             A list of :class:`~chessclub.core.models.Game` instances
@@ -426,9 +432,11 @@ class ChessComClient(ChessProvider):
         if tournament.start_date is None or tournament.end_date is None:
             return []
 
-        results = self.get_tournament_results(
-            tournament.id, tournament_type=tournament.tournament_type
-        )
+        if results is None:
+            results = self.get_tournament_results(
+                tournament.id,
+                tournament_type=tournament.tournament_type,
+            )
         participants = {r.player.lower() for r in results}
 
         if not participants and tournament.player_count > 0 and tournament.club_slug:
@@ -678,6 +686,15 @@ class ChessComClient(ChessProvider):
         if r.status_code == 200:
             try:
                 self._cache.set(cache_key, r.json(), ttl)
+            except (ValueError, OSError):
+                pass
+        elif r.status_code == 404:
+            # Cache 404s so repeated probes (e.g. leaderboard URL
+            # variants) don't hit the network every time.
+            try:
+                self._cache.set(
+                    cache_key, {"_status": 404}, ttl
+                )
             except (ValueError, OSError):
                 pass
         return r

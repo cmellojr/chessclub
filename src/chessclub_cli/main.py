@@ -661,7 +661,9 @@ def tournaments(
                     tournament_type=tournament.tournament_type,
                     tournament_url=tournament.url,
                 )
-                game_data = service.get_tournament_games(tournament)
+                game_data = service.get_tournament_games(
+                    tournament, results=t_results
+                )
         except AuthenticationRequiredError as e:
             console.print(f"[red]Error:[/red] {e}", highlight=False)
             raise typer.Exit(1)

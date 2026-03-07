@@ -229,14 +229,12 @@ class CachedResponse:
 
     Implements only the subset used by :class:`~chessclub.providers.chesscom
     .client.ChessComClient`: ``status_code``, ``json()``, and
-    ``raise_for_status()``.  Always reports HTTP 200 because only successful
-    responses are written to the cache.
+    ``raise_for_status()``.  Reports the original HTTP status code so that
+    cached 404 responses are handled identically to live ones.
 
     Args:
         body: The cached JSON response body.
     """
-
-    status_code: int = 200
 
     def __init__(self, body: dict):
         """Initialise the stub with a cached response body.
@@ -245,6 +243,7 @@ class CachedResponse:
             body: The JSON response body dict.
         """
         self._body = body
+        self.status_code: int = body.get("_status", 200)
 
     def json(self) -> dict:
         """Return the cached response body.
