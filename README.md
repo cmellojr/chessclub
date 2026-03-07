@@ -28,6 +28,7 @@
 - **Disk cache** — SQLite-backed cache at `~/.cache/chessclub/cache.db` with TTLs calibrated to data volatility; repeated commands run instantly; managed via `chessclub cache stats/clear`
 - **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server
 - **Typed domain models** — `Club`, `Member`, `Tournament`, `Game`, `PlayerStats`, `RatingSnapshot`, `Matchup` as Python dataclasses, never raw dicts
+- **Verbose mode** — `--verbose` / `-v` prints elapsed time, cache/network breakdown, and active auth method
 - **Rich terminal output** — coloured, aligned tables via the [Rich](https://github.com/Textualize/rich) library
 - **Google Python Style Guide** throughout
 
@@ -52,6 +53,9 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 3
 # View games from a specific tournament (by list #, name, or ID)
 chessclub club tournaments clube-de-xadrez-de-jundiai --games 141
 chessclub club tournaments clube-de-xadrez-de-jundiai --games "26o Torneio"
+
+# Verbose mode — shows timing, cache/network stats, and auth method
+chessclub -v club stats clube-de-xadrez-de-jundiai
 
 # Club analytics
 chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
@@ -232,17 +236,9 @@ Total: 2 games (2 with accuracy data)
 `chessclub` stores API responses in a SQLite database at
 `~/.cache/chessclub/cache.db`. The second run of any command is nearly instant.
 
-| Data | TTL |
-|---|---|
-| Game archives — past months | 30 days (immutable) |
-| Game archives — current month | 1 hour |
-| Player profiles | 24 hours |
-| Club member list | 1 hour |
-| Club info | 24 hours |
-| Tournament leaderboard | 7 days |
-| Club tournament list | 30 minutes |
-
-Only HTTP 200 responses are cached. Errors (404, 429) always go to the network.
+HTTP 200 and 404 responses are cached with per-URL TTLs calibrated to data
+volatility (from 30 minutes for tournament lists up to 30 days for immutable
+game archives). Transient errors (429, 5xx) always go to the network.
 
 ```bash
 chessclub cache stats            # entry count and database size
@@ -250,7 +246,8 @@ chessclub cache clear --expired  # remove only expired entries
 chessclub cache clear            # remove everything
 ```
 
-See [docs/cache.md](docs/cache.md) for the full implementation notes.
+See [docs/cache.md](docs/cache.md) for the full TTL policy and implementation
+notes.
 
 ---
 

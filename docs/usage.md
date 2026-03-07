@@ -21,11 +21,14 @@ $ chessclub --help
  Usage: chessclub [OPTIONS] COMMAND [ARGS]...
 
 ╭─ Options ──────────────────────────────────────────────────╮
-│ --help   Show this message and exit.                       │
+│ --verbose  -v   Show timing, cache/network stats, and auth │
+│ --help          Show this message and exit.                 │
 ╰────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────╮
 │ auth   Manage Chess.com authentication.                    │
+│ cache  Manage the API response cache.                      │
 │ club   Club-related commands.                              │
+│ player Player-specific analytics.                          │
 ╰────────────────────────────────────────────────────────────╯
 ```
 
@@ -438,17 +441,9 @@ chessclub player rating-history joaosilva -c clube-de-xadrez-de-jundiai --last-n
 ## Disk Cache
 
 API responses are stored in a SQLite database at `~/.cache/chessclub/cache.db`
-to avoid repeated network calls. Current TTLs:
-
-| Endpoint | TTL | Rationale |
-|---|---|---|
-| Game archives — past months | **30 days** | Historical archives are immutable |
-| Game archives — current month | **1 hour** | Rounds happen within hours |
-| Player profile | **24 hours** | Rating updated at most once per day |
-| Club member list | **1 hour** | Members join or leave infrequently |
-| Club info | **24 hours** | Name and description almost never change |
-| Tournament leaderboard | **7 days** | Finished tournament results are immutable |
-| Club tournament list | **30 minutes** | New tournaments appear at most weekly |
+to avoid repeated network calls. HTTP 200 and 404 responses are cached with
+per-URL TTLs calibrated to data volatility. See [`docs/cache.md`](cache.md)
+for the full TTL policy.
 
 **Cache commands:**
 
@@ -613,3 +608,30 @@ chessclub club tournaments clube-de-xadrez-de-jundiai --output json \
 chessclub club tournaments clube-de-xadrez-de-jundiai --games 141 --output json \
   | jq '[.[].avg_accuracy | select(. != null)] | add/length'
 ```
+
+---
+
+## Verbose Mode
+
+Pass `--verbose` / `-v` (before the subcommand) to see timing, cache/network
+stats, and which auth method is active.
+
+```
+$ chessclub -v club stats clube-de-xadrez-de-jundiai
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                    ...                                                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+  752 Members  |  Created on 15/02/2022  |  141 Events
+
+...
+
+0.1s · from cache · auth: cookie + OAuth
+```
+
+| Scenario | Footer example |
+|---|---|
+| All from cache | `0.1s · from cache · auth: cookie` |
+| Mixed | `3.2s · 5 cache / 3 network · auth: cookie + OAuth` |
+| All from network | `5.7s · auth: cookie` |
+| No provider (auth/cache cmds) | `1.2s` |

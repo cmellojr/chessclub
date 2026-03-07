@@ -375,13 +375,21 @@ JSON and CSV outputs are machine-readable and bypass all Rich formatting.
 
 ---
 
-## Active auth method selection
+## Verbose mode
 
-The CLI always uses **cookie session** as the base authentication (required for
-internal `/callback/` endpoints). When OAuth is also configured, the Bearer
-header is layered on top of the session:
+All commands accept the global `--verbose` / `-v` flag. When active, a footer
+line is printed after the command output with:
 
-- **Cookie session** — always active (env vars `CHESSCOM_ACCESS_TOKEN` /
-  `CHESSCOM_PHPSESSID`, or `~/.config/chessclub/credentials.json`).
-- **OAuth 2.0** — additionally layered when `CHESSCOM_CLIENT_ID` is set **and**
-  `~/.config/chessclub/oauth_token.json` exists. Tokens auto-refresh.
+- **Elapsed time** — total wall-clock seconds.
+- **Cache / network breakdown** — e.g. `14 cache / 4 network`, or `from cache`
+  when all requests were served from disk.
+- **Active auth method** — `auth: cookie + OAuth`, `auth: cookie`, or
+  `auth: OAuth`.
+
+```
+chessclub -v club stats clube-de-xadrez-de-jundiai
+# … normal output …
+# 0.1s · from cache · auth: cookie + OAuth
+```
+
+Without `--verbose`, no footer is printed.
