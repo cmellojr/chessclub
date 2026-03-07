@@ -65,6 +65,8 @@ class ChessComClient(ChessProvider):
             self.session.headers.update(credentials.headers)
 
         self._cache = SQLiteCache()
+        self.cache_hits: int = 0
+        self.network_requests: int = 0
 
     def get_club(self, slug: str) -> Club:
         """Return general information about a club.
@@ -656,6 +658,7 @@ class ChessComClient(ChessProvider):
         """
         ttl = self._cache_ttl(url)
         if ttl is None:
+            self.network_requests += 1
             return self.session.get(url, **kwargs)
 
         params = kwargs.get("params")
@@ -667,8 +670,10 @@ class ChessComClient(ChessProvider):
 
         cached = self._cache.get(cache_key)
         if cached is not None:
+            self.cache_hits += 1
             return CachedResponse(cached)
 
+        self.network_requests += 1
         r = self.session.get(url, **kwargs)
         if r.status_code == 200:
             try:

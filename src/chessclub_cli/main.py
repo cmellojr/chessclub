@@ -7,6 +7,7 @@ abstractions.
 """
 
 import csv
+import functools
 import io
 import json
 import os
@@ -55,6 +56,8 @@ _USER_AGENT = "Chessclub/0.1 (contact: cmellojr@gmail.com)"
 _VALIDATION_CLUB = "chess-com-developer-community"
 _ENV_CLIENT_ID = "CHESSCOM_CLIENT_ID"
 
+_current_provider: ChessComClient | None = None
+
 
 # ---------------------------------------------------------------------------
 # Output format
@@ -72,6 +75,34 @@ class OutputFormat(str, Enum):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _print_footer(elapsed: float) -> None:
+    """Print elapsed time and cache-hit summary after a command."""
+    parts = [f"{elapsed:.1f}s"]
+    if _current_provider:
+        hits = _current_provider.cache_hits
+        net = _current_provider.network_requests
+        if hits and not net:
+            parts.append("from cache")
+        elif hits and net:
+            parts.append(f"{hits} cache / {net} network")
+    console.print(f"\n[dim]{' · '.join(parts)}[/dim]")
+
+
+def _timed(func):
+    """Decorator that prints elapsed time and cache stats after a command."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        global _current_provider
+        _current_provider = None
+        t0 = time.perf_counter()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            elapsed = time.perf_counter() - t0
+            _print_footer(elapsed)
+    return wrapper
 
 
 def _resolve_client_id() -> str:
@@ -104,12 +135,14 @@ def _get_service() -> ClubService:
     Returns:
         A :class:`~chessclub.services.club_service.ClubService` instance.
     """
+    global _current_provider
     client_id = _resolve_client_id()
     use_oauth = client_id and creds_store.load_oauth_token()
     cookie_auth = ChessComCookieAuth()
     # Always use cookies as the base auth — /callback/ endpoints
     # require session cookies and reject OAuth Bearer tokens.
     provider = ChessComClient(user_agent=_USER_AGENT, auth=cookie_auth)
+    _current_provider = provider
     if use_oauth:
         # Additionally set the OAuth Bearer header for endpoints
         # that accept it (e.g. auth status validation).
@@ -170,6 +203,7 @@ def _to_csv(rows: list[dict], fieldnames: list[str]) -> str:
 
 
 @auth_app.command()
+@_timed
 def setup():
     """Configure and save Chess.com credentials locally."""
     console.print("\n[bold]Chess.com credentials setup[/bold]\n")
@@ -220,6 +254,7 @@ def setup():
 
 
 @auth_app.command()
+@_timed
 def login():
     """Authenticate via OAuth 2.0 PKCE (requires Chess.com developer access)."""
     client_id = _resolve_client_id()
@@ -259,6 +294,7 @@ def login():
 
 
 @auth_app.command()
+@_timed
 def status():
     """Show the status of all configured credentials."""
     oauth_token = creds_store.load_oauth_token()
@@ -347,6 +383,7 @@ def status():
 
 
 @auth_app.command()
+@_timed
 def clear():
     """Remove all locally saved credentials (cookies and OAuth token)."""
     removed_cookies = creds_store.clear()
@@ -365,6 +402,7 @@ def clear():
 
 
 @club_app.command()
+@_timed
 def stats(
     slug: str,
     output: OutputFormat = typer.Option(
@@ -472,6 +510,7 @@ _ACTIVITY_STYLE: dict[str, str] = {
 
 
 @club_app.command()
+@_timed
 def members(
     slug: str,
     details: bool = typer.Option(
@@ -541,6 +580,7 @@ def members(
 
 
 @club_app.command()
+@_timed
 def tournaments(
     slug: str,
     output: OutputFormat = typer.Option(
@@ -801,6 +841,7 @@ def tournaments(
 
 
 @club_app.command()
+@_timed
 def games(
     slug: str,
     last_n: int = typer.Option(
@@ -936,6 +977,7 @@ def games(
 
 
 @club_app.command()
+@_timed
 def leaderboard(
     slug: str,
     year: int = typer.Option(
@@ -1032,6 +1074,7 @@ def leaderboard(
 
 
 @club_app.command()
+@_timed
 def matchups(
     slug: str,
     last_n: int = typer.Option(
@@ -1127,6 +1170,7 @@ def matchups(
 
 
 @player_app.command(name="rating-history")
+@_timed
 def rating_history(
     username: str,
     club: str = typer.Option(
@@ -1233,6 +1277,7 @@ def rating_history(
 
 
 @cache_app.command(name="stats")
+@_timed
 def cache_stats() -> None:
     """Show cache statistics (entry count and database size)."""
     from chessclub.providers.chesscom.cache import SQLiteCache
@@ -1252,6 +1297,7 @@ def cache_stats() -> None:
 
 
 @cache_app.command(name="clear")
+@_timed
 def cache_clear(
     expired_only: bool = typer.Option(
         False,
