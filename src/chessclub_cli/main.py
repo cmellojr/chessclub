@@ -45,6 +45,20 @@ auth_app = typer.Typer(help="Manage Chess.com authentication.")
 cache_app = typer.Typer(help="Manage the API response cache.")
 player_app = typer.Typer(help="Player-specific analytics.")
 
+
+@app.callback()
+def _main_callback(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show timing, cache/network stats, and auth method.",
+    ),
+) -> None:
+    """Chessclub — CLI for chess platform analytics."""
+    global _verbose
+    _verbose = verbose
+
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
 app.add_typer(cache_app, name="cache")
@@ -57,6 +71,7 @@ _VALIDATION_CLUB = "chess-com-developer-community"
 _ENV_CLIENT_ID = "CHESSCOM_CLIENT_ID"
 
 _current_provider: ChessComClient | None = None
+_verbose: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +93,12 @@ class OutputFormat(str, Enum):
 
 
 def _print_footer(elapsed: float) -> None:
-    """Print elapsed time and cache-hit summary after a command."""
+    """Print elapsed time, cache/network stats, and auth info.
+
+    Only prints when ``--verbose`` / ``-v`` is active.
+    """
+    if not _verbose:
+        return
     parts = [f"{elapsed:.1f}s"]
     if _current_provider:
         hits = _current_provider.cache_hits
@@ -87,6 +107,15 @@ def _print_footer(elapsed: float) -> None:
             parts.append("from cache")
         elif hits and net:
             parts.append(f"{hits} cache / {net} network")
+        # Auth method summary.
+        has_cookie = bool(_current_provider.session.cookies)
+        has_oauth = "Authorization" in _current_provider.session.headers
+        if has_cookie and has_oauth:
+            parts.append("auth: cookie + OAuth")
+        elif has_cookie:
+            parts.append("auth: cookie")
+        elif has_oauth:
+            parts.append("auth: OAuth")
     console.print(f"\n[dim]{' · '.join(parts)}[/dim]")
 
 
