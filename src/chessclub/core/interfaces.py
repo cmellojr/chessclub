@@ -81,7 +81,11 @@ class ChessProvider(ABC):
         """
 
     @abstractmethod
-    def get_tournament_games(self, tournament: Tournament) -> list[Game]:
+    def get_tournament_games(
+        self,
+        tournament: Tournament,
+        results: list[TournamentResult] | None = None,
+    ) -> list[Game]:
         """Return all games played inside a single club tournament.
 
         Only games whose participants both appear in the tournament's
@@ -93,6 +97,9 @@ class ChessProvider(ABC):
         Args:
             tournament: A :class:`Tournament` instance with valid
                 ``start_date`` and ``end_date``.
+            results: Pre-fetched leaderboard results.  When provided,
+                the provider skips the leaderboard request and derives
+                participants from this list instead.
 
         Returns:
             A list of :class:`Game` instances ordered best-to-worst by

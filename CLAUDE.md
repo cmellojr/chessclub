@@ -142,7 +142,7 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 ## CLI Command Structure
 
 ```
-chessclub
+chessclub [--verbose/-v]
 ├── club
 │   ├── stats <slug>                    # Club info + stats (public API, no auth)
 │   ├── members <slug> [--details]      # Member list with activity tier (public API)

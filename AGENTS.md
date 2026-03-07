@@ -1,56 +1,18 @@
 # AGENTS.md
 
 This file provides guidance to AI coding agents working with this repository.
+For the full reference (architecture, conventions, dependency rules, code style,
+branch model), see [`CLAUDE.md`](CLAUDE.md) — this file summarises the essentials
+and avoids duplicating that content.
 
-## Project Overview
+## Quick Reference
 
-A modular Python library and CLI for consuming chess platform APIs (Chess.com today; Lichess, Lishogi, and Xiangqi.com planned). The goal is a multi-platform abstraction layer built around the Provider Pattern, where the core domain never depends on any specific platform.
+- **Install:** `pip install -e .` then `chessclub --help`
+- **No linter or test runner** is currently configured.
+- **Google Python Style Guide** throughout (80-char lines, Google-style
+  docstrings, built-in generics, absolute imports only).
 
-## Development Setup
-
-```bash
-# Install in editable mode (required before running the CLI)
-pip install -e .
-
-# Run the CLI after installation
-chessclub --help
-```
-
-No linting or automated test runner is currently configured.
-
-## Architecture
-
-The project uses a strict layered architecture. Each layer depends only on the layers below it. The dependency rule is enforced by convention — no exceptions.
-
-```
-src/
-├── chessclub/               # Core library (importable as a package)
-│   ├── core/                # Domain layer — no external dependencies
-│   │   ├── interfaces.py    # ChessProvider ABC
-│   │   ├── models.py        # Domain models (dataclasses)
-│   │   └── exceptions.py    # ChessclubError, AuthenticationRequiredError, ProviderError
-│   │
-│   ├── auth/                # Authentication abstractions + credential storage
-│   │   ├── interfaces.py    # AuthCredentials (dataclass) + AuthProvider ABC
-│   │   └── credentials.py   # credentials.json (cookies) + oauth_token.json (OAuth)
-│   │
-│   ├── providers/           # Platform-specific implementations
-│   │   └── chesscom/
-│   │       ├── auth.py      # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
-│   │       ├── cache.py     # SQLiteCache + CachedResponse
-│   │       └── client.py    # ChessComClient implements ChessProvider
-│   │
-│   └── services/            # Business logic
-│       ├── club_service.py            # ClubService receives ChessProvider via DI
-│       ├── leaderboard_service.py     # LeaderboardService — annual/monthly rankings
-│       ├── rating_history_service.py  # RatingHistoryService — per-player rating evolution
-│       └── matchup_service.py         # MatchupService — head-to-head records
-│
-└── chessclub_cli/           # CLI — composition root only
-    └── main.py              # Typer app; the only place that imports concrete classes
-```
-
-### Dependency rule (never violate)
+## Dependency Rule (never violate)
 
 ```
 core/           — imports nothing from this project
@@ -60,173 +22,12 @@ services/       — imports only from core/
 chessclub_cli/  — imports from all layers (composition root)
 ```
 
-## Authentication Architecture
+## Key Conventions
 
-Authentication is a **separate layer** from providers. Providers receive an `AuthProvider` instance and apply credentials to their HTTP sessions; they have no knowledge of how credentials are obtained, stored, or refreshed.
-
-### Interfaces (`auth/interfaces.py`)
-
-- `AuthCredentials` — generic dataclass carrying `headers: dict` and `cookies: dict`.
-- `AuthProvider` — ABC with `get_credentials() -> AuthCredentials` and `is_authenticated() -> bool`.
-
-### Chess.com implementations (`providers/chesscom/auth.py`)
-
-- `ChessComCookieAuth` — resolves `ACCESS_TOKEN` + `PHPSESSID` cookies in order:
-  1. Constructor arguments
-  2. `CHESSCOM_ACCESS_TOKEN` / `CHESSCOM_PHPSESSID` environment variables
-  3. `~/.config/chessclub/credentials.json` (mode 0o600)
-- `ChessComOAuth` — OAuth 2.0 PKCE + Loopback Local Server (RFC 8252). Full
-  implementation. Requires a `client_id` issued by Chess.com (application submitted).
-  - `run_login_flow(client_id)` — static method; opens browser, starts loopback
-    server on a random port, captures the authorization code, exchanges it for
-    tokens (no `client_secret` — PKCE replaces it), saves to
-    `~/.config/chessclub/oauth_token.json` (mode 0o600).
-  - `get_credentials()` — returns `Authorization: Bearer` header; auto-refreshes
-    using `refresh_token` when the access token is within 60 s of expiry.
-  - `is_authenticated()` — `True` if a valid or refreshable token exists on disk.
-  - See: https://www.chess.com/clubs/forum/view/guide-applying-for-oauth-access
-
-### Credential storage (`auth/credentials.py`)
-
-Two separate files under `~/.config/chessclub/`, both with `0o600` permissions:
-
-| File | Written by | Contents |
-|---|---|---|
-| `credentials.json` | `auth setup` | `{"access_token": …, "phpsessid": …}` |
-| `oauth_token.json` | `auth login` | `{"access_token": …, "refresh_token": …, "expires_at": …, "scope": …}` |
-
-### Adding a new auth strategy
-
-Implement `AuthProvider` and return an `AuthCredentials` with the appropriate headers/cookies. No changes to `core/`, `services/`, or `ChessComClient` are needed.
-
-## Provider Pattern
-
-`ChessProvider` (in `core/interfaces.py`) is the single abstract interface all providers must implement. It returns domain model instances — never raw dicts.
-
-```python
-class ChessProvider(ABC):
-    def get_club(self, slug: str) -> Club: ...
-    def get_club_members(self, slug: str) -> list[Member]: ...
-    def get_club_tournaments(self, slug: str) -> list[Tournament]: ...
-    def get_player(self, username: str) -> dict: ...
-```
-
-All services (`ClubService`, `LeaderboardService`, `RatingHistoryService`, `MatchupService`) depend only on `ChessProvider` — they never import a concrete provider.
-
-### Adding a new platform (e.g. Lichess)
-
-1. Create `providers/lichess/auth.py` → implement `AuthProvider` for Lichess tokens.
-2. Create `providers/lichess/client.py` → implement `ChessProvider`.
-3. Wire in `chessclub_cli/main.py` (composition root) — no other files change.
-
-## Domain Models
-
-All models are dataclasses defined in `core/models.py`. Providers must map raw API responses to these models before returning them.
-
-| Model | Key fields |
-|---|---|
-| `Club` | `id` (slug), `provider_id`, `name`, `description`, `country`, `url`, `members_count`, `created_at`, `location`, `matches_count` |
-| `Member` | `username`, `rating`, `title`, `joined_at` |
-| `Tournament` | `id`, `name`, `tournament_type`, `status`, `start_date`, `end_date`, `player_count`, `winner_username`, `winner_score`, `club_slug` |
-| `TournamentResult` | `tournament_id`, `player`, `position`, `score`, `rating` |
-| `Game` | `white`, `black`, `result`, `opening_eco`, `played_at`, `white_accuracy`, `black_accuracy`, `url`; computed `avg_accuracy` |
-| `PlayerStats` | `username`, `tournaments_played`, `wins`, `total_score`, `avg_score` |
-| `RatingSnapshot` | `tournament_id`, `tournament_name`, `tournament_type`, `tournament_date`, `rating`, `position`, `score` |
-| `Matchup` | `player_a`, `player_b`, `wins_a`, `wins_b`, `draws`, `total_games`, `last_played` |
-
-## API Strategy — Chess.com
-
-- **Public endpoints** (`api.chess.com/pub`): No auth needed — club info, members, player profiles.
-- **Internal web endpoints** (`www.chess.com/callback`): Requires session cookies — club tournaments (auto-paginated). The numeric `club_id` is resolved from the public API response before calling these endpoints.
-
-## CLI Command Structure
-
-```
-chessclub
-├── club
-│   ├── stats <slug>                    # Club info + stats (public API, no auth)
-│   ├── members <slug> [--details]      # Member list with activity tier (public API)
-│   ├── tournaments <slug>              # Tournament list, oldest-first (requires auth)
-│   │     [--details]                   #   + per-tournament standings
-│   │     [--games <#|name|id>]         #   + games for one tournament ranked by accuracy
-│   ├── games <slug>                    # Games from last N tournaments (requires auth)
-│   │     [--last-n N] [--min-accuracy X]
-│   ├── leaderboard <slug>              # Ranked player leaderboard (requires auth)
-│   │     --year Y [--month M]
-│   └── matchups <slug>                 # Head-to-head records (requires auth)
-│         [--last-n N]
-├── player
-│   └── rating-history <username>       # Rating evolution per tournament (requires auth)
-│         --club <slug> [--last-n N]
-├── auth
-│   ├── login                           # OAuth 2.0 PKCE + loopback; tokens auto-refresh
-│   ├── setup                           # Cookie session: Cookie Helper extension
-│   ├── status                          # Shows token + session; validates active method
-│   └── clear                           # Removes credentials.json AND oauth_token.json
-└── cache
-    ├── stats                           # Entry count, active/expired, database size
-    └── clear [--expired]               # Remove all entries (or only expired)
-```
-
-The CLI (`chessclub_cli/main.py`) is the **composition root**: the only module that
-instantiates concrete classes (`ChessComCookieAuth`, `ChessComOAuth`, `ChessComClient`).
-Everything else depends on abstractions.
-
-Active auth method selection in `_get_service()`:
-- **Always** uses `ChessComCookieAuth` as the base (session cookies for
-  internal `/callback/` endpoints).
-- **Additionally** layers `ChessComOAuth` Bearer header on the session when
-  `CHESSCOM_CLIENT_ID` is set AND `oauth_token.json` exists.
-
-## Exceptions
-
-Use domain exceptions from `core/exceptions.py` — never Python built-ins as a proxy.
-
-| Exception | When to raise |
-|---|---|
-| `AuthenticationRequiredError` | Provider receives HTTP 401 from an authenticated endpoint |
-| `ProviderError` | Provider encounters an unrecoverable platform-specific error |
-| `ChessclubError` | Base class — catch this to handle any library error generically |
-
-## Branch Model
-
-```
-main      ← stable; every commit here is a release candidate
-develop   ← integration; all active development happens here
-feature/* ← short-lived; one per feature or fix, branched off develop
-hotfix/*  ← urgent fixes branched off main; merged back to main AND develop
-```
-
-### Rules
-
-- **`main`**: never commit directly. Only receives merges from `develop` (releases)
-  or `hotfix/*` (urgent fixes). Every merge to `main` must be tagged (`v0.1.0`, …).
-- **`develop`**: the day-to-day working branch. Broken or in-progress commits are
-  acceptable here. All feature branches are created from and merged back into this branch.
-- **`feature/<description>`**: branch off `develop`, delete after merge.
-  Examples: `feature/lichess-provider`, `feature/json-output`, `fix/auth-expiry`.
-- **`hotfix/<description>`**: branch off `main` for production-critical fixes only.
-  Must be merged back into both `main` and `develop`.
-
-### Workflow
-
-```
-feature/lichess-provider ──┐
-feature/json-output      ──┤  merge when ready
-fix/auth-expiry          ──┘
-                            ↓
-                         develop  ← validate here
-                            ↓  when stable
-                          main    ← tag: v0.2.0
-```
-
-## Code Style
-
-Follows the **Google Python Style Guide** throughout.
-
-- Docstrings: Google-style format with `Args` / `Returns` / `Raises` sections on all public APIs.
-- Types: built-in generics (`list[dict]`, `str | None`) — no `typing.List` / `typing.Optional`.
-- Imports: absolute only, grouped stdlib → third-party → local, one import per line.
-- Line length: 80 characters maximum.
-- Exceptions: specific types only — no bare `except:` or broad `except Exception`.
-- All packages have `__init__.py`.
+- All domain models are **dataclasses** in `core/models.py` — providers must
+  map raw API responses to these models before returning them.
+- Use domain exceptions from `core/exceptions.py` — never Python built-ins.
+- The CLI (`chessclub_cli/main.py`) is the **composition root**: the only place
+  that imports concrete classes. Everything else depends on abstractions.
+- Branch model: `develop` for daily work, `main` for releases (never commit
+  directly), `feature/*` off develop, `hotfix/*` off main.

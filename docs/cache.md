@@ -37,9 +37,9 @@ The cache key is the full request URL. If query parameters are present
 (e.g. `?page=1`) they are serialised with `json.dumps(params, sort_keys=True)`
 and appended, ensuring page-level granularity.
 
-Only **HTTP 200** responses are stored. Errors (404, 429, 401) always bypass
-the cache — they are never written and the next request always goes to the
-network.
+**HTTP 200** and **HTTP 404** responses are cached (404s are stored so that
+repeated probes — e.g. leaderboard URL variants — avoid hitting the network
+every time). Transient errors (429, 401, 5xx) always bypass the cache.
 
 WAL journal mode is enabled for better concurrent read performance and atomic
 writes.
@@ -53,6 +53,7 @@ context of a weekly/monthly chess club.
 
 | Data | URL pattern | TTL | Rationale |
 |---|---|---|---|
+| Public tournament data | `/pub/tournament/…` | **7 days** | Finished tournaments are immutable |
 | Past game archives | `/games/{year}/{month}` (month < current) | **30 days** | Historical archives are immutable — a game played in January will never change |
 | Current month archives | `/games/{year}/{month}` (current month) | **1 hour** | A club tournament spans several hours; re-runs within the same session use the cache |
 | Player profile | `/pub/player/{username}` | **24 hours** | Rating and title are updated at most once per day |
@@ -60,6 +61,8 @@ context of a weekly/monthly chess club.
 | Club info | `/pub/club/{slug}` | **24 hours** | Name and description almost never change |
 | Tournament leaderboard | `*/leaderboard` | **7 days** | Finished tournament results are immutable |
 | Club tournament list | `/clubs/live/past/{id}` | **30 minutes** | New tournaments appear at most weekly |
+
+Both HTTP 200 and 404 responses follow the same TTL for their URL pattern.
 
 ---
 
@@ -89,8 +92,8 @@ Handles reading and writing cache entries via `sqlite3` (Python stdlib).
 
 A lightweight stub that mimics the `requests.Response` interface. Used to
 return cached data to calling code without needing a real HTTP response object.
-Always reports `status_code = 200`. Implements `json()` and `raise_for_status()`
-(no-op).
+Reports the original HTTP status code (200 or 404) read from a `_status` field
+in the cached body. Implements `json()` and `raise_for_status()` (no-op).
 
 ---
 
@@ -122,8 +125,9 @@ _cached_get(url)
     └─ session.get(url)
            │
            ├─ status == 200?  ──► cache.set(key, body, ttl)
+           ├─ status == 404?  ──► cache.set(key, {_status:404}, ttl)
            │
-           └─ return response  [errors pass through uncached]
+           └─ return response  [other errors pass through uncached]
 ```
 
 All `session.get()` calls in the client go through `_cached_get()`:
