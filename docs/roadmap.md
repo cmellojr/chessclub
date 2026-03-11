@@ -35,6 +35,17 @@ Reference with `@docs/roadmap.md` in Claude Code prompts for plan context.
 - [x] Implement `chessclub club matchups <slug>` command with head-to-head table
 - [ ] Add unit tests for each new service and command
 
+### Phase 2b — Club Analytics (extended) ✅
+
+- [x] `--year` optional on `club leaderboard` — omit for an all-time leaderboard
+- [x] Implement `AttendanceService` in `services/` — per-player attendance, participation %, streaks
+- [x] Implement `chessclub club attendance <slug> [--last-n N]` command
+- [x] Implement `chessclub club history <slug>` command — participant count per tournament over time
+- [x] Implement `RecordsService` in `services/` — tournament-based + game-based records
+- [x] Implement `chessclub club records <slug> [--last-n N]` command — highest score, most played, best accuracy, etc.
+- [x] Add `AttendanceRecord` and `ClubRecord` domain models
+- [ ] Add unit tests for each new service and command
+
 ### Phase 3 — Player Aliases (multiple identities)
 
 Players who use more than one username can be grouped under a single unified identity. All analytics services must honour these aliases automatically.
@@ -91,7 +102,7 @@ Players who use more than one username can be grouped under a single unified ide
 ## Recorded Architecture Decisions
 
 - **Separate projects:** `chessclub` is a library/CLI; `chessclub-web` will be an independent Flask project that imports `chessclub` as a dependency.
-- **Analytics services:** live in `src/chessclub/services/` (e.g. `LeaderboardService`, `RatingHistoryService`, `MatchupService`). They depend only on `ChessProvider` — never on providers directly.
+- **Analytics services:** live in `src/chessclub/services/` (e.g. `LeaderboardService`, `RatingHistoryService`, `MatchupService`, `AttendanceService`, `RecordsService`). They depend only on `ChessProvider` — never on providers directly.
 - **`Game` model:** must be added to `core/` in Phase 1 to avoid incorrect dependencies in later phases.
 - **Local cache:** essential before Phase 5 — opening analysis may require hundreds of API calls.
 - **Player aliases:** stored in `~/.config/chessclub/aliases.json`. The `AliasResolver` is a service layer applied before any aggregation — all analytics services receive already-resolved data. The `display_name` is the canonical player identity across all outputs.

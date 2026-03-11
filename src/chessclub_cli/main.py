@@ -1204,6 +1204,278 @@ def matchups(
 
 
 # ---------------------------------------------------------------------------
+# attendance command
+# ---------------------------------------------------------------------------
+
+
+@club_app.command()
+@_timed
+def attendance(
+    slug: str,
+    last_n: int = typer.Option(
+        0,
+        "--last-n",
+        help=(
+            "Only consider the N most recent tournaments. "
+            "0 = all tournaments."
+        ),
+    ),
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Rank players by tournament attendance and consistency.
+
+    Shows how many tournaments each player participated in, their
+    attendance percentage, and current / longest consecutive streaks.
+    Requires authentication.
+
+    Examples:
+
+        chessclub club attendance my-club
+
+        chessclub club attendance my-club --last-n 20
+    """
+    from chessclub.services.attendance_service import AttendanceService
+
+    try:
+        service = _get_service()
+        att = AttendanceService(service.provider)
+        n: int | None = last_n if last_n > 0 else None
+        scope = f"last {last_n}" if n else "all"
+        with console.status(
+            f"[dim]Fetching attendance ({scope} tournaments)…[/dim]",
+            spinner="dots",
+        ):
+            data = att.get_attendance(slug, last_n=n)
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    if not data:
+        console.print("[yellow]No attendance data found.[/yellow]")
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(a) for a in data], indent=2))
+
+    elif output == OutputFormat.csv:
+        _fields = [
+            "username", "tournaments_played", "total_tournaments",
+            "participation_pct", "current_streak", "max_streak",
+        ]
+        print(_to_csv([asdict(a) for a in data], _fields), end="")
+
+    else:
+        total_t = data[0].total_tournaments if data else 0
+        table = Table(
+            title=f"Attendance — {slug} ({total_t} tournaments)",
+            show_lines=False,
+        )
+        table.add_column("#", justify="right", style="dim", width=4)
+        table.add_column("Player", style="cyan")
+        table.add_column("Played", justify="right")
+        table.add_column("%", justify="right", style="bold")
+        table.add_column("Streak", justify="right")
+        table.add_column("Best", justify="right")
+
+        for i, a in enumerate(data, 1):
+            table.add_row(
+                str(i),
+                a.username,
+                str(a.tournaments_played),
+                f"{a.participation_pct:.0f}%",
+                str(a.current_streak),
+                str(a.max_streak),
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(data)} players · "
+            f"{scope} tournaments[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
+# history command
+# ---------------------------------------------------------------------------
+
+
+@club_app.command()
+@_timed
+def history(
+    slug: str,
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Show club evolution: participant count per tournament over time.
+
+    Lists every club tournament with its date and number of
+    participants, ordered oldest-first.  Requires authentication.
+
+    Examples:
+
+        chessclub club history my-club
+    """
+    try:
+        service = _get_service()
+        with console.status(
+            "[dim]Fetching tournament history…[/dim]",
+            spinner="dots",
+        ):
+            tournaments = service.get_club_tournaments(slug)
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    tournaments.sort(key=lambda t: t.end_date or t.start_date or 0)
+
+    if not tournaments:
+        console.print("[yellow]No tournaments found.[/yellow]")
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        rows = []
+        for t in tournaments:
+            rows.append({
+                "name": t.name,
+                "date": t.end_date or t.start_date,
+                "player_count": t.player_count,
+                "winner": t.winner_username,
+            })
+        print(json.dumps(rows, indent=2))
+
+    elif output == OutputFormat.csv:
+        rows = []
+        for t in tournaments:
+            rows.append({
+                "name": t.name,
+                "date": t.end_date or t.start_date,
+                "player_count": t.player_count,
+                "winner": t.winner_username,
+            })
+        _fields = ["name", "date", "player_count", "winner"]
+        print(_to_csv(rows, _fields), end="")
+
+    else:
+        table = Table(
+            title=f"Club History — {slug}",
+            show_lines=False,
+        )
+        table.add_column("#", justify="right", style="dim", width=4)
+        table.add_column("Tournament", no_wrap=False)
+        table.add_column("Date", justify="right")
+        table.add_column("Players", justify="right", style="bold")
+        table.add_column("Winner", style="cyan")
+
+        for i, t in enumerate(tournaments, 1):
+            table.add_row(
+                str(i),
+                t.name,
+                _fmt_date(t.end_date or t.start_date),
+                str(t.player_count or "—"),
+                t.winner_username or "—",
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(tournaments)} tournaments[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
+# records command
+# ---------------------------------------------------------------------------
+
+
+@club_app.command()
+@_timed
+def records(
+    slug: str,
+    last_n: int = typer.Option(
+        5,
+        "--last-n",
+        help=(
+            "Tournaments to scan for game-based records "
+            "(accuracy).  0 = all.  Tournament-based records "
+            "always scan every tournament."
+        ),
+    ),
+    output: OutputFormat = typer.Option(
+        OutputFormat.table, "--output", "-o", help="Output format."
+    ),
+) -> None:
+    """Show notable club records and highlights.
+
+    Identifies the highest tournament score, most active player,
+    biggest tournament, best accuracy, and more.  Game-based records
+    (accuracy) scan only the last N tournaments by default.
+    Requires authentication.
+
+    Examples:
+
+        chessclub club records my-club
+
+        chessclub club records my-club --last-n 0
+    """
+    from chessclub.services.records_service import RecordsService
+
+    try:
+        service = _get_service()
+        rs = RecordsService(service.provider)
+        n: int | None = last_n if last_n > 0 else None
+        scope = f"last {last_n}" if n else "all"
+        with console.status(
+            f"[dim]Fetching records ({scope} tournaments "
+            f"for games)…[/dim]",
+            spinner="dots",
+        ):
+            data = rs.get_records(slug, last_n=n)
+    except AuthenticationRequiredError as e:
+        console.print(f"[red]Error:[/red] {e}", highlight=False)
+        raise typer.Exit(1)
+
+    if not data:
+        console.print("[yellow]No records found.[/yellow]")
+        raise typer.Exit(0)
+
+    if output == OutputFormat.json:
+        print(json.dumps([asdict(r) for r in data], indent=2))
+
+    elif output == OutputFormat.csv:
+        _fields = ["category", "value", "player", "detail", "date"]
+        print(
+            _to_csv([asdict(r) for r in data], _fields), end=""
+        )
+
+    else:
+        table = Table(
+            title=f"Club Records — {slug}",
+            show_lines=True,
+        )
+        table.add_column("Record", style="bold")
+        table.add_column("Value", justify="right", style="cyan")
+        table.add_column("Player")
+        table.add_column("Detail", style="dim")
+        table.add_column("Date", justify="right")
+
+        for r in data:
+            table.add_row(
+                r.category,
+                r.value,
+                r.player or "—",
+                r.detail or "",
+                _fmt_date(r.date),
+            )
+
+        console.print(table)
+        console.print(
+            f"[dim]{len(data)} records[/dim]"
+        )
+
+
+# ---------------------------------------------------------------------------
 # player commands
 # ---------------------------------------------------------------------------
 
