@@ -1011,8 +1011,11 @@ def games(
 @_timed
 def leaderboard(
     slug: str,
-    year: int = typer.Option(
-        ..., "--year", "-y", help="Calendar year to aggregate."
+    year: int | None = typer.Option(
+        None,
+        "--year",
+        "-y",
+        help="Calendar year.  Omit for an all-time leaderboard.",
     ),
     month: int | None = typer.Option(
         None,
@@ -1026,13 +1029,15 @@ def leaderboard(
         OutputFormat.table, "--output", "-o", help="Output format."
     ),
 ) -> None:
-    """Show the club leaderboard for a year or a specific month.
+    """Show the club leaderboard for a year, month, or all time.
 
-    Aggregates tournament results across all events that ended in the
-    specified period and ranks players by total chess score.  Requires
+    Aggregates tournament results and ranks players by total chess
+    score.  Omit --year for an all-time leaderboard.  Requires
     authentication.
 
     Examples:
+
+        chessclub club leaderboard my-club
 
         chessclub club leaderboard my-club --year 2025
 
@@ -1043,9 +1048,12 @@ def leaderboard(
     try:
         service = _get_service()
         lb = LeaderboardService(service.provider)
-        period_label = (
-            f"{year}/{month:02d}" if month else str(year)
-        )
+        if year and month:
+            period_label = f"{year}/{month:02d}"
+        elif year:
+            period_label = str(year)
+        else:
+            period_label = "All time"
         with console.status(
             f"[dim]Fetching leaderboard for {period_label}…[/dim]",
             spinner="dots",

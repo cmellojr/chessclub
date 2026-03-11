@@ -22,7 +22,7 @@ class LeaderboardService:
     def get_leaderboard(
         self,
         slug: str,
-        year: int,
+        year: int | None = None,
         month: int | None = None,
     ) -> list[PlayerStats]:
         """Return a ranked list of player statistics for a given period.
@@ -39,8 +39,9 @@ class LeaderboardService:
             slug: The URL-friendly club identifier.
             year: Calendar year to filter by (uses ``Tournament.end_date``,
                 falling back to ``start_date`` when ``end_date`` is absent).
+                When ``None``, all tournaments are included (all-time).
             month: Optional month (1–12).  When ``None``, all months of
-                *year* are included.
+                *year* are included.  Ignored when *year* is ``None``.
 
         Returns:
             A list of :class:`~chessclub.core.models.PlayerStats` instances
@@ -57,13 +58,14 @@ class LeaderboardService:
             ts = t.end_date or t.start_date
             if not ts:
                 continue
-            dt = datetime.datetime.fromtimestamp(
-                ts, tz=datetime.timezone.utc
-            )
-            if dt.year != year:
-                continue
-            if month is not None and dt.month != month:
-                continue
+            if year is not None:
+                dt = datetime.datetime.fromtimestamp(
+                    ts, tz=datetime.timezone.utc
+                )
+                if dt.year != year:
+                    continue
+                if month is not None and dt.month != month:
+                    continue
             qualifying.append(t)
 
         if not qualifying:
