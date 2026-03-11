@@ -338,30 +338,6 @@ chessclub club attendance clube-de-xadrez-de-jundiai --last-n 20
 
 ---
 
-### `chessclub club history <slug>`
-
-Shows the club's evolution over time: one row per tournament with date,
-participant count, and winner. Tournaments are listed oldest-first.
-Authentication required.
-
-```
-chessclub club history clube-de-xadrez-de-jundiai
-```
-
-**How it works**
-
-1. Fetches all club tournaments and sorts them by date.
-2. Displays each tournament's name, date, player count, and winner.
-
-No additional API calls beyond the tournament list — uses the `player_count`
-and `winner_username` fields already present in the `Tournament` model.
-
-**Columns:** `#`, `Tournament`, `Date`, `Players`, `Winner`.
-
-**Output formats:** `--output table`, `--output json`, `--output csv`.
-
----
-
 ### `chessclub club records <slug> [--last-n N]`
 
 Identifies noteworthy club records and highlights. Authentication required.

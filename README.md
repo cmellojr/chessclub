@@ -24,7 +24,6 @@
 - **Rating history** — `player rating-history` tracks a player's rating evolution across club tournaments
 - **Head-to-head matchups** — `club matchups` shows win/loss/draw records for every pair of players
 - **Attendance ranking** — `club attendance` ranks players by tournament participation %, current streak, and longest streak
-- **Club history** — `club history` shows participant count per tournament over time (club evolution)
 - **Club records** — `club records` identifies best tournament score, most active player, highest accuracy, biggest tournament, and more
 - **Swiss + Arena support** — works for both tournament formats; falls back to the club member list when Chess.com does not expose a leaderboard for Swiss events
 - **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
@@ -65,7 +64,6 @@ chessclub club leaderboard clube-de-xadrez-de-jundiai              # all-time
 chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
 chessclub club matchups clube-de-xadrez-de-jundiai --last-n 10
 chessclub club attendance clube-de-xadrez-de-jundiai --last-n 20
-chessclub club history clube-de-xadrez-de-jundiai
 chessclub club records clube-de-xadrez-de-jundiai
 chessclub player rating-history joaosilva --club clube-de-xadrez-de-jundiai
 ```
@@ -96,7 +94,6 @@ All `club` commands accept `--output` / `-o`: `table` (default), `json`, or `csv
 | `club leaderboard <slug> [--year Y] [--month M]` | **Yes** | Ranked player leaderboard (omit --year for all-time) |
 | `club matchups <slug> [--last-n N]` | **Yes** | Head-to-head win/loss/draw records between members |
 | `club attendance <slug> [--last-n N]` | **Yes** | Attendance ranking with participation % and streaks |
-| `club history <slug>` | **Yes** | Participant count per tournament over time |
 | `club records <slug> [--last-n N]` | **Yes** | Club records: best score, most played, best accuracy |
 
 ### `player` commands
@@ -484,7 +481,6 @@ pytest tests/ -v
 - [x] `player rating-history <username> --club <slug>` — rating evolution across tournaments
 - [x] `club matchups <slug>` — head-to-head win/loss/draw table
 - [x] `club attendance <slug>` — attendance ranking with participation % and streaks
-- [x] `club history <slug>` — participant count per tournament over time
 - [x] `club records <slug>` — club records and highlights (best score, accuracy, etc.)
 - [ ] Player aliases — group multiple usernames under one identity
 

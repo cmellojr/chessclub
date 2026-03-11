@@ -445,26 +445,6 @@ chessclub club attendance clube-de-xadrez-de-jundiai --last-n 20
 
 ---
 
-### `chessclub club history <slug>`
-
-Shows the club's evolution over time: participant count per tournament.
-
-```
-$ chessclub club history clube-de-xadrez-de-jundiai
-
-                   Club History — clube-de-xadrez-de-jundiai
-  #   Tournament                              Date         Players   Winner
- ──────────────────────────────────────────────────────────────────────────────
-  1   Torneio XIII de Agosto                  2022-07-20         6   —
-  2   II Torneio Blitz 13 de Agosto           2022-07-27        11   —
-  ...
-142   104a Arena XIII de Agosto Jundiaí       2026-03-04        20   —
-
-142 tournaments
-```
-
----
-
 ### `chessclub club records <slug> [--last-n N]`
 
 Shows notable club records and highlights.

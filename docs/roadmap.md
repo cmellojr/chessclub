@@ -40,7 +40,6 @@ Reference with `@docs/roadmap.md` in Claude Code prompts for plan context.
 - [x] `--year` optional on `club leaderboard` — omit for an all-time leaderboard
 - [x] Implement `AttendanceService` in `services/` — per-player attendance, participation %, streaks
 - [x] Implement `chessclub club attendance <slug> [--last-n N]` command
-- [x] Implement `chessclub club history <slug>` command — participant count per tournament over time
 - [x] Implement `RecordsService` in `services/` — tournament-based + game-based records
 - [x] Implement `chessclub club records <slug> [--last-n N]` command — highest score, most played, best accuracy, etc.
 - [x] Add `AttendanceRecord` and `ClubRecord` domain models

@@ -161,7 +161,6 @@ chessclub [--verbose/-v]
 │   │     [--last-n N]
 │   ├── attendance <slug>               # Attendance ranking + streaks (requires auth)
 │   │     [--last-n N]
-│   ├── history <slug>                  # Participants per tournament over time (requires auth)
 │   └── records <slug>                  # Club records / highlights (requires auth)
 │         [--last-n N]
 ├── player
