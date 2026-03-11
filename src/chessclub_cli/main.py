@@ -39,6 +39,21 @@ from chessclub.providers.chesscom.auth import ChessComCookieAuth, ChessComOAuth
 from chessclub.providers.chesscom.client import ChessComClient
 from chessclub.services.club_service import ClubService
 
+class Provider(str, Enum):
+    """Supported chess platforms."""
+
+    chesscom = "chesscom"
+    lichess = "lichess"
+
+
+class OutputFormat(str, Enum):
+    """Supported output formats for club commands."""
+
+    table = "table"
+    json = "json"
+    csv = "csv"
+
+
 app = typer.Typer()
 club_app = typer.Typer()
 auth_app = typer.Typer(help="Manage Chess.com authentication.")
@@ -54,10 +69,17 @@ def _main_callback(
         "-v",
         help="Show timing, cache/network stats, and auth method.",
     ),
+    provider: Provider = typer.Option(
+        Provider.chesscom,
+        "--provider",
+        "-p",
+        help="Platform to use: chesscom (default) or lichess.",
+    ),
 ) -> None:
     """Chessclub — CLI for chess platform analytics."""
-    global _verbose
+    global _verbose, _provider_name
     _verbose = verbose
+    _provider_name = provider.value
 
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
@@ -72,19 +94,7 @@ _ENV_CLIENT_ID = "CHESSCOM_CLIENT_ID"
 
 _current_provider: ChessComClient | None = None
 _verbose: bool = False
-
-
-# ---------------------------------------------------------------------------
-# Output format
-# ---------------------------------------------------------------------------
-
-
-class OutputFormat(str, Enum):
-    """Supported output formats for club commands."""
-
-    table = "table"
-    json = "json"
-    csv = "csv"
+_provider_name: str = "chesscom"
 
 
 # ---------------------------------------------------------------------------
@@ -108,14 +118,19 @@ def _print_footer(elapsed: float) -> None:
         elif hits and net:
             parts.append(f"{hits} cache / {net} network")
         # Auth method summary.
-        has_cookie = bool(_current_provider.session.cookies)
-        has_oauth = "Authorization" in _current_provider.session.headers
-        if has_cookie and has_oauth:
-            parts.append("auth: cookie + OAuth")
-        elif has_cookie:
-            parts.append("auth: cookie")
-        elif has_oauth:
-            parts.append("auth: OAuth")
+        if _provider_name == "lichess":
+            sess = getattr(_current_provider, "_session", None)
+            if sess and "Authorization" in sess.headers:
+                parts.append("auth: token")
+        else:
+            has_cookie = bool(_current_provider.session.cookies)
+            has_oauth = "Authorization" in _current_provider.session.headers
+            if has_cookie and has_oauth:
+                parts.append("auth: cookie + OAuth")
+            elif has_cookie:
+                parts.append("auth: cookie")
+            elif has_oauth:
+                parts.append("auth: OAuth")
     console.print(f"\n[dim]{' · '.join(parts)}[/dim]")
 
 
@@ -156,15 +171,24 @@ def _resolve_client_id() -> str:
 
 
 def _get_service() -> ClubService:
-    """Build and return a ClubService backed by the Chess.com provider.
+    """Build and return a ClubService backed by the selected provider.
 
-    Prefers OAuth 2.0 when a client ID is available and an OAuth token
-    file exists; falls back to :class:`ChessComCookieAuth` otherwise.
+    When ``--provider lichess`` is active, returns a ClubService backed
+    by :class:`~chessclub.providers.lichess.client.LichessClient`.
+    Otherwise defaults to Chess.com, preferring OAuth 2.0 when a client
+    ID is available; falls back to :class:`ChessComCookieAuth`.
 
     Returns:
         A :class:`~chessclub.services.club_service.ClubService` instance.
     """
     global _current_provider
+    if _provider_name == "lichess":
+        from chessclub.providers.lichess.auth import LichessTokenAuth
+        from chessclub.providers.lichess.client import LichessClient
+        auth = LichessTokenAuth()
+        provider = LichessClient(user_agent=_USER_AGENT, auth=auth)
+        _current_provider = provider
+        return ClubService(provider)
     client_id = _resolve_client_id()
     use_oauth = client_id and creds_store.load_oauth_token()
     cookie_auth = ChessComCookieAuth()
