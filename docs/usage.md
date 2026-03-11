@@ -357,10 +357,9 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 0
 
 ---
 
-### `chessclub club leaderboard <slug> --year Y [--month M]`
+### `chessclub club leaderboard <slug> [--year Y] [--month M]`
 
-Ranks players by total chess score across all tournaments that ended in the
-specified period.
+Ranks players by total chess score. Omit `--year` for an all-time leaderboard.
 
 ```
 $ chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
@@ -374,6 +373,12 @@ $ chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
   ...
 
  42 players · 2025
+```
+
+**All-time leaderboard:**
+
+```bash
+chessclub club leaderboard clube-de-xadrez-de-jundiai
 ```
 
 **With month filter:**
@@ -408,6 +413,66 @@ $ chessclub club matchups clube-de-xadrez-de-jundiai
 ```bash
 chessclub club matchups clube-de-xadrez-de-jundiai --last-n 10
 chessclub club matchups clube-de-xadrez-de-jundiai --last-n 0   # all tournaments
+```
+
+---
+
+### `chessclub club attendance <slug> [--last-n N]`
+
+Ranks players by tournament attendance, participation %, and consecutive
+streaks.
+
+```
+$ chessclub club attendance clube-de-xadrez-de-jundiai --last-n 10
+
+  Attendance — clube-de-xadrez-de-jundiai (10 tournaments)
+  #   Player              Played    %   Streak   Best
+ ──────────────────────────────────────────────────────────
+  1   murilotopera             9  90%        2      7
+  2   cmellojr                 7  70%        7      7
+  3   adrian_morales           7  70%        1      4
+  ...
+
+ 55 players · last 10 tournaments
+```
+
+**Options:**
+
+```bash
+chessclub club attendance clube-de-xadrez-de-jundiai              # all tournaments
+chessclub club attendance clube-de-xadrez-de-jundiai --last-n 20
+```
+
+---
+
+### `chessclub club records <slug> [--last-n N]`
+
+Shows notable club records and highlights.
+
+```
+$ chessclub club records clube-de-xadrez-de-jundiai
+
+                   Club Records — clube-de-xadrez-de-jundiai
+ Record                 Value        Player                Detail            Date
+ ────────────────────────────────────────────────────────────────────────────────────
+ Highest tournament     62.0 pts     ivanroberto           Arena XIII de...  2023-05-31
+ Most tournaments       79           regivinhedo                             —
+ Most 1st-place         24           regivinhedo                             —
+ Biggest tournament     29 players   —                     XIII de Agosto    2023-05-17
+ Highest avg accuracy   85.6%        SILVIOVENANCIO vs...  77.4% / 93.8%    2026-02-25
+ Highest individual     93.8%        4The_King             vs SILVIO...      2026-02-25
+
+6 records
+```
+
+**Options:**
+
+```bash
+# Default: game-based records scan last 5 tournaments
+chessclub club records clube-de-xadrez-de-jundiai
+
+# Scan all tournaments for game-based records (slow)
+chessclub club records clube-de-xadrez-de-jundiai --last-n 0
 ```
 
 ---
@@ -561,6 +626,28 @@ ms = MatchupService(client)
 matchups = ms.get_matchups("clube-de-xadrez-de-jundiai", last_n=5)
 for m in matchups:
     print(f"{m.player_a} vs {m.player_b}: {m.wins_a}-{m.draws}-{m.wins_b}")
+```
+
+**Attendance:**
+
+```python
+from chessclub.services.attendance_service import AttendanceService
+
+att = AttendanceService(client)
+records = att.get_attendance("clube-de-xadrez-de-jundiai", last_n=20)
+for r in records:
+    print(f"{r.username}  {r.participation_pct:.0f}%  streak={r.current_streak}")
+```
+
+**Records:**
+
+```python
+from chessclub.services.records_service import RecordsService
+
+rs = RecordsService(client)
+records = rs.get_records("clube-de-xadrez-de-jundiai", last_n=5)
+for r in records:
+    print(f"{r.category}: {r.value} — {r.player}")
 ```
 
 **Without authentication** (public endpoints only):

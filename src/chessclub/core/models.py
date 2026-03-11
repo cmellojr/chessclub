@@ -262,3 +262,54 @@ class Matchup:
 
     last_played: int | None = None
     """Unix timestamp of the most recent game between them."""
+
+
+# ----------------------
+# AttendanceRecord
+# ----------------------
+
+
+@dataclass
+class AttendanceRecord:
+    """Attendance and consistency stats for a single player."""
+
+    username: str
+    tournaments_played: int
+    """Number of tournaments the player participated in."""
+
+    total_tournaments: int
+    """Total number of tournaments available in the period."""
+
+    participation_pct: float
+    """Percentage of tournaments attended (0–100)."""
+
+    current_streak: int
+    """Number of consecutive most-recent tournaments attended."""
+
+    max_streak: int
+    """Longest streak of consecutive tournaments attended."""
+
+
+# ----------------------
+# ClubRecord
+# ----------------------
+
+
+@dataclass
+class ClubRecord:
+    """A single club record / highlight."""
+
+    category: str
+    """Record category (e.g. ``"Highest accuracy"``)."""
+
+    value: str
+    """Formatted record value (e.g. ``"95.7%"``)."""
+
+    player: str | None
+    """Player associated with this record, or ``None``."""
+
+    detail: str | None = None
+    """Extra context (e.g. tournament name, opponent)."""
+
+    date: int | None = None
+    """Unix timestamp when the record occurred."""

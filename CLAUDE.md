@@ -44,7 +44,9 @@ src/
 │       ├── club_service.py            # ClubService receives ChessProvider via DI
 │       ├── leaderboard_service.py     # LeaderboardService — annual/monthly rankings
 │       ├── rating_history_service.py  # RatingHistoryService — per-player rating evolution
-│       └── matchup_service.py         # MatchupService — head-to-head records
+│       ├── matchup_service.py         # MatchupService — head-to-head records
+│       ├── attendance_service.py      # AttendanceService — attendance + streaks
+│       └── records_service.py         # RecordsService — club records / highlights
 │
 └── chessclub_cli/           # CLI — composition root only
     └── main.py              # Typer app; the only place that imports concrete classes
@@ -111,7 +113,7 @@ class ChessProvider(ABC):
     def get_player(self, username: str) -> dict: ...
 ```
 
-All services (`ClubService`, `LeaderboardService`, `RatingHistoryService`, `MatchupService`) depend only on `ChessProvider` — they never import a concrete provider.
+All services (`ClubService`, `LeaderboardService`, `RatingHistoryService`, `MatchupService`, `AttendanceService`, `RecordsService`) depend only on `ChessProvider` — they never import a concrete provider.
 
 ### Adding a new platform (e.g. Lichess)
 
@@ -133,6 +135,8 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 | `PlayerStats` | `username`, `tournaments_played`, `wins`, `total_score`, `avg_score` |
 | `RatingSnapshot` | `tournament_id`, `tournament_name`, `tournament_type`, `tournament_date`, `rating`, `position`, `score` |
 | `Matchup` | `player_a`, `player_b`, `wins_a`, `wins_b`, `draws`, `total_games`, `last_played` |
+| `AttendanceRecord` | `username`, `tournaments_played`, `total_tournaments`, `participation_pct`, `current_streak`, `max_streak` |
+| `ClubRecord` | `category`, `value`, `player`, `detail`, `date` |
 
 ## API Strategy — Chess.com
 
@@ -152,8 +156,12 @@ chessclub [--verbose/-v]
 │   ├── games <slug>                    # Games from last N tournaments (requires auth)
 │   │     [--last-n N] [--min-accuracy X]
 │   ├── leaderboard <slug>              # Ranked player leaderboard (requires auth)
-│   │     --year Y [--month M]
-│   └── matchups <slug>                 # Head-to-head records (requires auth)
+│   │     [--year Y] [--month M]
+│   ├── matchups <slug>                 # Head-to-head records (requires auth)
+│   │     [--last-n N]
+│   ├── attendance <slug>               # Attendance ranking + streaks (requires auth)
+│   │     [--last-n N]
+│   └── records <slug>                  # Club records / highlights (requires auth)
 │         [--last-n N]
 ├── player
 │   └── rating-history <username>       # Rating evolution per tournament (requires auth)

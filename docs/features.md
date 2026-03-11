@@ -261,13 +261,14 @@ Chess.com.
 
 ---
 
-### `chessclub club leaderboard <slug> --year Y [--month M]`
+### `chessclub club leaderboard <slug> [--year Y] [--month M]`
 
-Aggregates tournament results for a year (or a specific month) and ranks
-players by total chess score. Ties are broken by number of 1st-place finishes.
-Authentication required.
+Aggregates tournament results and ranks players by total chess score. Ties
+are broken by number of 1st-place finishes. Omit `--year` for an all-time
+leaderboard. Authentication required.
 
 ```
+chessclub club leaderboard clube-de-xadrez-de-jundiai                  # all-time
 chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025
 chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025 --month 3
 ```
@@ -275,8 +276,9 @@ chessclub club leaderboard clube-de-xadrez-de-jundiai --year 2025 --month 3
 **How it works**
 
 1. Fetches all club tournaments via `get_club_tournaments()`.
-2. Filters to tournaments whose `end_date` (or `start_date` fallback) falls
-   within the requested year and optional month.
+2. When `--year` is provided, filters to tournaments whose `end_date` (or
+   `start_date` fallback) falls within the requested year and optional month.
+   When omitted, all tournaments are included (all-time).
 3. For each qualifying tournament, fetches the leaderboard via
    `get_tournament_results()` and accumulates per-player totals.
 4. Sorts by `total_score` descending, then by `wins` descending.
@@ -304,6 +306,62 @@ chessclub club matchups clube-de-xadrez-de-jundiai --last-n 0   # all tournament
 4. Sorts by `total_games` descending (most active rivalries first).
 
 `--last-n` defaults to 5 (last 5 tournaments). Use `0` for all tournaments.
+
+**Output formats:** `--output table`, `--output json`, `--output csv`.
+
+---
+
+### `chessclub club attendance <slug> [--last-n N]`
+
+Ranks players by tournament participation, showing attendance percentage and
+consecutive streaks. Authentication required.
+
+```
+chessclub club attendance clube-de-xadrez-de-jundiai
+chessclub club attendance clube-de-xadrez-de-jundiai --last-n 20
+```
+
+**How it works**
+
+1. Fetches all club tournaments and sorts them chronologically.
+2. If `--last-n` is provided, takes only the N most recent tournaments.
+3. For each tournament, fetches the leaderboard to identify participants.
+4. Builds a per-player attendance bitmap (present/absent per tournament).
+5. Computes participation percentage, current streak (counting backward from
+   most recent), and longest-ever streak.
+6. Sorts by participation % descending, then longest streak descending.
+
+**Columns:** `#`, `Player`, `Played`, `%` (participation), `Streak` (current),
+`Best` (longest ever).
+
+**Output formats:** `--output table`, `--output json`, `--output csv`.
+
+---
+
+### `chessclub club records <slug> [--last-n N]`
+
+Identifies noteworthy club records and highlights. Authentication required.
+
+```
+chessclub club records clube-de-xadrez-de-jundiai
+chessclub club records clube-de-xadrez-de-jundiai --last-n 0   # scan all for games too
+```
+
+**How it works**
+
+Records are split into two categories:
+
+- **Tournament-based records** (cheap — always scan all tournaments):
+  highest single-tournament score, most tournaments played, most 1st-place
+  finishes, biggest tournament by participant count.
+- **Game-based records** (expensive — scan only `--last-n` tournaments,
+  default 5): highest average accuracy in a game, highest individual
+  accuracy.
+
+Use `--last-n 0` to scan all tournaments for game-based records (slow for
+large clubs).
+
+**Columns:** `Record`, `Value`, `Player`, `Detail`, `Date`.
 
 **Output formats:** `--output table`, `--output json`, `--output csv`.
 
