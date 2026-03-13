@@ -124,19 +124,38 @@ class LichessClient(ChessProvider):
     ) -> list[Member]:
         """Return team members as Member objects.
 
-        The Lichess stream includes rating and title for every user, so
-        ``with_details`` has no additional network cost.
+        The team members endpoint returns only basic data (id,
+        joinedTeamAt).  A bulk ``POST /api/users`` call enriches
+        each member with rating, title, and last-seen timestamp.
 
         Args:
             slug: Lichess team ID.
-            with_details: Accepted for interface compatibility; ignored.
+            with_details: Accepted for interface compatibility; ignored
+                because enrichment is always performed.
 
         Returns:
             List of Member objects.
         """
         url = f"{self.BASE_URL}/team/{slug}/users"
-        users = self._get_ndjson(url, _TTL_TEAM_MEMBERS)
-        return [self._map_member(u) for u in users]
+        basic_users = self._get_ndjson(url, _TTL_TEAM_MEMBERS)
+
+        # Build lookup: lowercase id → joinedTeamAt (ms)
+        join_dates: dict[str, int | None] = {}
+        ids: list[str] = []
+        for u in basic_users:
+            uid = u.get("id") or u.get("name") or ""
+            ids.append(uid)
+            join_dates[uid.lower()] = u.get("joinedTeamAt")
+
+        # Enrich with full profiles (POST /api/users, max 300 per call)
+        enriched = self._bulk_users(ids)
+
+        members: list[Member] = []
+        for uid in ids:
+            profile = enriched.get(uid.lower(), {})
+            joined_ms = join_dates.get(uid.lower())
+            members.append(self._map_member_enriched(profile, uid, joined_ms))
+        return members
 
     def get_club_tournaments(self, slug: str) -> list[Tournament]:
         """Return all tournaments organised by the team.
@@ -220,7 +239,8 @@ class LichessClient(ChessProvider):
             Deduplicated list of Game objects sorted by average accuracy
             descending.
         """
-        tournaments = self.get_club_tournaments(slug)
+        all_tournaments = self.get_club_tournaments(slug)
+        tournaments = [t for t in all_tournaments if t.status == "finished"]
         if last_n:
             tournaments = tournaments[-last_n:]
 
@@ -252,6 +272,37 @@ class LichessClient(ChessProvider):
         url = f"{self.BASE_URL}/user/{username}"
         data = self._get_json(url, _TTL_PLAYER_PROFILE)
         return data if isinstance(data, dict) else {}
+
+    # ------------------------------------------------------------------
+    # Bulk user enrichment
+    # ------------------------------------------------------------------
+
+    def _bulk_users(self, ids: list[str]) -> dict[str, dict]:
+        """Fetch full profiles for a list of usernames.
+
+        Uses ``POST /api/users`` which accepts up to 300 IDs per call.
+
+        Args:
+            ids: List of Lichess usernames.
+
+        Returns:
+            Dict mapping lowercase username to full profile dict.
+        """
+        result: dict[str, dict] = {}
+        batch_size = 300
+        for i in range(0, len(ids), batch_size):
+            batch = ids[i : i + batch_size]
+            self.network_requests += 1
+            resp = self._session.post(
+                f"{self.BASE_URL.replace('/api', '')}/api/users",
+                data=",".join(batch),
+            )
+            if resp.status_code == 200:
+                for user in resp.json():
+                    uid = user.get("id", "").lower()
+                    if uid:
+                        result[uid] = user
+        return result
 
     # ------------------------------------------------------------------
     # Tournament helpers
@@ -359,12 +410,45 @@ class LichessClient(ChessProvider):
     @staticmethod
     def _map_member(data: dict) -> Member:
         perfs = data.get("perfs", {})
+        username = (
+            data.get("username") or data.get("name") or data.get("id", "")
+        )
         return Member(
-            username=data.get("username", ""),
+            username=username,
             rating=LichessClient._best_rating(perfs),
             title=data.get("title"),
-            joined_at=None,
+            joined_at=LichessClient._ms_to_s(data.get("joinedTeamAt")),
             activity=LichessClient._activity_tier(data.get("seenAt")),
+        )
+
+    @staticmethod
+    def _map_member_enriched(
+        profile: dict, fallback_id: str, joined_ms: int | None
+    ) -> Member:
+        """Map a bulk-fetched profile to a Member, with join date fallback.
+
+        Args:
+            profile: Full profile dict from ``POST /api/users`` (may be
+                empty if the user was not found).
+            fallback_id: Username from the team members list.
+            joined_ms: ``joinedTeamAt`` timestamp in milliseconds.
+
+        Returns:
+            Member domain model.
+        """
+        perfs = profile.get("perfs", {})
+        username = (
+            profile.get("username")
+            or profile.get("name")
+            or profile.get("id")
+            or fallback_id
+        )
+        return Member(
+            username=username,
+            rating=LichessClient._best_rating(perfs),
+            title=profile.get("title"),
+            joined_at=LichessClient._ms_to_s(joined_ms),
+            activity=LichessClient._activity_tier(profile.get("seenAt")),
         )
 
     @staticmethod

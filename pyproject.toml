@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chessclub"
-version = "0.1.0"
+version = "0.2.0"
 description = "Modular library for chess platform APIs"
 readme = "README.md"
 license = { text = "MIT" }

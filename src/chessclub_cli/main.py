@@ -91,7 +91,7 @@ app.add_typer(player_app, name="player")
 
 console = Console(legacy_windows=False)
 
-_USER_AGENT = "Chessclub/0.1 (contact: cmellojr@gmail.com)"
+_USER_AGENT = "Chessclub/0.2 (contact: cmellojr@gmail.com)"
 _VALIDATION_CLUB = "chess-com-developer-community"
 _ENV_CLIENT_ID = "CHESSCOM_CLIENT_ID"
 
@@ -943,6 +943,9 @@ def games(
             f"[dim]Fetching games ({scope})…[/dim]", spinner="dots"
         ):
             data = service.get_club_games(slug, last_n=n)
+            # Build tournament ID → name map for display (cached, no cost)
+            tournaments = service.get_club_tournaments(slug)
+            tid_to_name = {t.id: t.name for t in tournaments}
     except AuthenticationRequiredError as e:
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
@@ -989,7 +992,7 @@ def games(
 
     else:
         table = Table(title=f"Tournament Games — {slug}", show_lines=False)
-        table.add_column("Tournament", style="dim", no_wrap=False)
+        table.add_column("Tournament", style="dim", no_wrap=True, max_width=20)
         table.add_column("White", style="cyan")
         table.add_column("W%", justify="right")
         table.add_column("Black", style="cyan")
@@ -999,8 +1002,11 @@ def games(
         table.add_column("Date", justify="right")
 
         for g in data:
+            t_label = tid_to_name.get(
+                g.tournament_id or "", g.tournament_id or "—"
+            )
             table.add_row(
-                g.tournament_id or "—",
+                t_label,
                 g.white,
                 _fmt_acc(g.white_accuracy),
                 g.black,
