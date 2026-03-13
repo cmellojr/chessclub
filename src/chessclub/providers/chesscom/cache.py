@@ -99,8 +99,7 @@ class SQLiteCache:
                 """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_expires "
-                "ON cache (expires_at)"
+                "CREATE INDEX IF NOT EXISTS idx_expires ON cache (expires_at)"
             )
 
     def _delete(self, key: str) -> None:
@@ -206,9 +205,7 @@ class SQLiteCache:
         try:
             now = time.time()
             with self._connect() as conn:
-                total = conn.execute(
-                    "SELECT COUNT(*) FROM cache"
-                ).fetchone()[0]
+                total = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
                 expired = conn.execute(
                     "SELECT COUNT(*) FROM cache WHERE expires_at <= ?",
                     (now,),

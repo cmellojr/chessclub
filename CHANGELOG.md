@@ -9,17 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] — 2026-03-12
+
 ### Added
+- **Lichess provider** — full `ChessProvider` implementation for Lichess API
+  - `LichessTokenAuth` — token-based authentication (most endpoints are public)
+  - `LichessClient` — supports teams, Swiss + Arena tournaments, ND-JSON streaming
+  - `--provider` / `-p` global flag to select platform: `chesscom` (default) or `lichess`
 - `club attendance` command — ranks players by tournament participation %, current streak, and all-time best streak
 - `club records` command — highlights club records across all tournaments (highest score, most wins, biggest field, highest accuracy)
 - `--year` is now optional on `club leaderboard`: omitting it returns an all-time ranking across all available tournaments
 - `--verbose` / `-v` global flag — shows execution time and cache hit/miss stats after each command
-- `AGENTS.md` — quick-reference guide for AI coding assistants
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CHANGELOG.md` added to the repository
 
 ### Changed
 - Removed `club history` command (redundant with `club tournaments`, which is more complete)
 - Timing and cache stats footer is now hidden by default; shown only with `--verbose`
+- Configured `ruff` linter/formatter (E/F/W/I/UP/B/SIM rules) and applied first pass across codebase
 
 ### Fixed
 - Auth layer now always sends session cookies alongside the OAuth Bearer header, ensuring internal Chess.com endpoints receive both credentials
@@ -70,5 +78,6 @@ First public release.
 
 ---
 
-[Unreleased]: https://github.com/cmellojr/chessclub/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cmellojr/chessclub/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cmellojr/chessclub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cmellojr/chessclub/releases/tag/v0.1.0

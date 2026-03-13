@@ -48,13 +48,16 @@ This project follows the [Google Python Style Guide](https://google.github.io/st
 - **Imports:** absolute only; grouped stdlib → third-party → local; one import per line.
 - **Line length:** 80 characters maximum.
 
-## Running Tests
+## Running Tests and Linting
 
 ```bash
 pytest
+ruff check src/          # lint (E/F/W/I/UP/B/SIM rules)
+ruff format --check src/ # verify formatting
+ruff format src/         # auto-format
 ```
 
-No automated linting is currently configured. Keep 80-char line length and Google style manually.
+Ruff configuration is in `pyproject.toml` under `[tool.ruff]`.
 
 ## Submitting a Pull Request
 
@@ -65,7 +68,8 @@ No automated linting is currently configured. Keep 80-char line length and Googl
 
 ## Adding a New Platform Provider
 
-The project is designed to be extended. To add a new platform (e.g. Lichess):
+The project is designed to be extended. The Lichess provider
+(`src/chessclub/providers/lichess/`) is the reference implementation.
 
 1. Create `src/chessclub/providers/<platform>/auth.py` — implement `AuthProvider`.
 2. Create `src/chessclub/providers/<platform>/client.py` — implement `ChessProvider`.

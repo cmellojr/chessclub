@@ -1,7 +1,13 @@
 """Service layer that wraps a ChessProvider for club-related operations."""
 
 from chessclub.core.interfaces import ChessProvider
-from chessclub.core.models import Club, Game, Member, Tournament, TournamentResult
+from chessclub.core.models import (
+    Club,
+    Game,
+    Member,
+    Tournament,
+    TournamentResult,
+)
 
 
 class ClubService:
@@ -137,9 +143,7 @@ class ClubService:
             A list of :class:`Game` instances ordered best-to-worst by
             average Stockfish accuracy.
         """
-        return self.provider.get_tournament_games(
-            tournament, results=results
-        )
+        return self.provider.get_tournament_games(tournament, results=results)
 
     def get_club_games(
         self, slug: str, last_n: int | None = None

@@ -1,7 +1,5 @@
 """Service for computing club records and highlights."""
 
-import datetime
-
 from chessclub.core.interfaces import ChessProvider
 from chessclub.core.models import ClubRecord
 
@@ -88,41 +86,49 @@ class RecordsService:
 
         # Highest single-tournament score.
         if best_score:
-            records.append(ClubRecord(
-                category="Highest tournament score",
-                value=f"{best_score[0]:.1f} pts",
-                player=best_score[1],
-                detail=best_score[2],
-                date=best_score[3],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Highest tournament score",
+                    value=f"{best_score[0]:.1f} pts",
+                    player=best_score[1],
+                    detail=best_score[2],
+                    date=best_score[3],
+                )
+            )
 
         # Most tournaments played.
         if most_played:
             top = max(most_played.items(), key=lambda x: x[1])
-            records.append(ClubRecord(
-                category="Most tournaments played",
-                value=str(top[1]),
-                player=top[0],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Most tournaments played",
+                    value=str(top[1]),
+                    player=top[0],
+                )
+            )
 
         # Most 1st-place finishes.
         if most_wins:
             top = max(most_wins.items(), key=lambda x: x[1])
-            records.append(ClubRecord(
-                category="Most 1st-place finishes",
-                value=str(top[1]),
-                player=top[0],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Most 1st-place finishes",
+                    value=str(top[1]),
+                    player=top[0],
+                )
+            )
 
         # Biggest tournament.
         if biggest_tournament:
-            records.append(ClubRecord(
-                category="Biggest tournament",
-                value=f"{biggest_tournament[0]} players",
-                player=None,
-                detail=biggest_tournament[1],
-                date=biggest_tournament[2],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Biggest tournament",
+                    value=f"{biggest_tournament[0]} players",
+                    player=None,
+                    detail=biggest_tournament[1],
+                    date=biggest_tournament[2],
+                )
+            )
 
         return records
 
@@ -139,8 +145,10 @@ class RecordsService:
             games = self.provider.get_tournament_games(t)
             for g in games:
                 if g.avg_accuracy is not None:
-                    if (best_accuracy is None
-                            or g.avg_accuracy > best_accuracy[0]):
+                    if (
+                        best_accuracy is None
+                        or g.avg_accuracy > best_accuracy[0]
+                    ):
                         best_accuracy = (
                             g.avg_accuracy,
                             g.white,
@@ -157,32 +165,37 @@ class RecordsService:
                     (g.black_accuracy, g.black, g.white),
                 ]:
                     if acc is not None:
-                        if (best_player_acc is None
-                                or acc > best_player_acc[0]):
+                        if best_player_acc is None or acc > best_player_acc[0]:
                             best_player_acc = (
-                                acc, player, opponent,
-                                g.url, g.played_at,
+                                acc,
+                                player,
+                                opponent,
+                                g.url,
+                                g.played_at,
                             )
 
         if best_accuracy:
-            records.append(ClubRecord(
-                category="Highest avg accuracy (game)",
-                value=f"{best_accuracy[0]:.1f}%",
-                player=f"{best_accuracy[1]} vs {best_accuracy[2]}",
-                detail=(
-                    f"{best_accuracy[3]:.1f}% / "
-                    f"{best_accuracy[4]:.1f}%"
-                ),
-                date=best_accuracy[6],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Highest avg accuracy (game)",
+                    value=f"{best_accuracy[0]:.1f}%",
+                    player=f"{best_accuracy[1]} vs {best_accuracy[2]}",
+                    detail=(
+                        f"{best_accuracy[3]:.1f}% / {best_accuracy[4]:.1f}%"
+                    ),
+                    date=best_accuracy[6],
+                )
+            )
 
         if best_player_acc:
-            records.append(ClubRecord(
-                category="Highest individual accuracy",
-                value=f"{best_player_acc[0]:.1f}%",
-                player=best_player_acc[1],
-                detail=f"vs {best_player_acc[2]}",
-                date=best_player_acc[4],
-            ))
+            records.append(
+                ClubRecord(
+                    category="Highest individual accuracy",
+                    value=f"{best_player_acc[0]:.1f}%",
+                    player=best_player_acc[1],
+                    detail=f"vs {best_player_acc[2]}",
+                    date=best_player_acc[4],
+                )
+            )
 
         return records

@@ -27,7 +27,11 @@ import requests
 
 from chessclub.auth.credentials import (
     load as _load_stored,
+)
+from chessclub.auth.credentials import (
     load_oauth_token as _load_oauth_token,
+)
+from chessclub.auth.credentials import (
     save_oauth_token as _save_oauth_token,
 )
 from chessclub.auth.interfaces import AuthCredentials, AuthProvider
@@ -154,6 +158,7 @@ class ChessComCookieAuth(AuthProvider):
         if os.getenv(_ENV_ACCESS_TOKEN):
             return "environment variables"
         from chessclub.auth.credentials import credentials_path
+
         return str(credentials_path())
 
 
@@ -178,9 +183,7 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802 — method name required by http.server
         """Handle the browser redirect from Chess.com."""
-        params = urllib.parse.parse_qs(
-            urllib.parse.urlparse(self.path).query
-        )
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         self.server.auth_code = params.get("code", [None])[0]
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -299,9 +302,7 @@ class ChessComOAuth(AuthProvider):
         # Step 1 — Generate PKCE values.
         code_verifier = secrets.token_urlsafe(64)
         digest = hashlib.sha256(code_verifier.encode()).digest()
-        code_challenge = (
-            base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-        )
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
         # Step 2 — Start a loopback server on a random OS-assigned port.
         server = http.server.HTTPServer(("127.0.0.1", 0), _CallbackHandler)

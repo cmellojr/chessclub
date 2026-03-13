@@ -45,9 +45,7 @@ class MatchupService:
             first).  Ties are broken alphabetically by
             ``player_a``.
         """
-        games = self.provider.get_club_games(
-            slug, last_n=last_n
-        )
+        games = self.provider.get_club_games(slug, last_n=last_n)
 
         pairs: dict[tuple[str, str], dict] = {}
 
@@ -100,20 +98,18 @@ class MatchupService:
 
         result: list[Matchup] = []
         for entry in pairs.values():
-            total = (
-                entry["wins_a"]
-                + entry["wins_b"]
-                + entry["draws"]
+            total = entry["wins_a"] + entry["wins_b"] + entry["draws"]
+            result.append(
+                Matchup(
+                    player_a=entry["player_a"],
+                    player_b=entry["player_b"],
+                    wins_a=entry["wins_a"],
+                    wins_b=entry["wins_b"],
+                    draws=entry["draws"],
+                    total_games=total,
+                    last_played=entry["last_played"],
+                )
             )
-            result.append(Matchup(
-                player_a=entry["player_a"],
-                player_b=entry["player_b"],
-                wins_a=entry["wins_a"],
-                wins_b=entry["wins_b"],
-                draws=entry["draws"],
-                total_games=total,
-                last_played=entry["last_played"],
-            ))
 
         result.sort(
             key=lambda m: (

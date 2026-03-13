@@ -49,7 +49,7 @@ class RatingHistoryService:
         tournaments = self.provider.get_club_tournaments(slug)
 
         tournaments.sort(
-            key=lambda t: (t.end_date or t.start_date or 0),
+            key=lambda t: t.end_date or t.start_date or 0,
         )
 
         if last_n is not None:
@@ -67,15 +67,17 @@ class RatingHistoryService:
             for r in results:
                 if r.player.lower() != target:
                     continue
-                snapshots.append(RatingSnapshot(
-                    tournament_id=t.id,
-                    tournament_name=t.name,
-                    tournament_type=t.tournament_type,
-                    tournament_date=t.end_date or t.start_date,
-                    rating=r.rating,
-                    position=r.position,
-                    score=r.score,
-                ))
+                snapshots.append(
+                    RatingSnapshot(
+                        tournament_id=t.id,
+                        tournament_name=t.name,
+                        tournament_type=t.tournament_type,
+                        tournament_date=t.end_date or t.start_date,
+                        rating=r.rating,
+                        position=r.position,
+                        score=r.score,
+                    )
+                )
                 break
 
         return snapshots
