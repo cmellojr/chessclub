@@ -1,9 +1,11 @@
 """Chess.com provider using the public and internal web APIs."""
 
+import contextlib
 import datetime
 import json
 import re
 import time
+
 import requests
 
 from chessclub.auth.interfaces import AuthProvider
@@ -52,11 +54,13 @@ class ChessComClient(ChessProvider):
                 usable.
         """
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": user_agent,
-            "X-Requested-With": "XMLHttpRequest",
-            "Accept": "application/json",
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": user_agent,
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json",
+            }
+        )
 
         if auth and auth.is_authenticated():
             credentials = auth.get_credentials()
@@ -295,7 +299,7 @@ class ChessComClient(ChessProvider):
             if r.status_code == 404:
                 return None  # Signal: try the next candidate URL.
             if r.status_code == 429:
-                time.sleep(2.0 ** attempt)  # 1 s → 2 s → 4 s
+                time.sleep(2.0**attempt)  # 1 s → 2 s → 4 s
                 continue
             r.raise_for_status()
             break
@@ -365,10 +369,12 @@ class ChessComClient(ChessProvider):
             )
             return [
                 self._parse_tournament_result(
-                    {"username": p.get("username", ""),
-                     "rank": pos,
-                     "score": p.get("points"),
-                     "rating": None},
+                    {
+                        "username": p.get("username", ""),
+                        "rank": pos,
+                        "score": p.get("points"),
+                        "rating": None,
+                    },
                     tournament_id,
                 )
                 for pos, p in enumerate(players_sorted, 1)
@@ -384,10 +390,12 @@ class ChessComClient(ChessProvider):
             )
             return [
                 self._parse_tournament_result(
-                    {"username": p.get("username", ""),
-                     "rank": p.get("place_finish", 0),
-                     "score": p.get("points"),
-                     "rating": None},
+                    {
+                        "username": p.get("username", ""),
+                        "rank": p.get("place_finish", 0),
+                        "score": p.get("points"),
+                        "rating": None,
+                    },
                     tournament_id,
                 )
                 for p in players_sorted
@@ -439,7 +447,11 @@ class ChessComClient(ChessProvider):
             )
         participants = {r.player.lower() for r in results}
 
-        if not participants and tournament.player_count > 0 and tournament.club_slug:
+        if (
+            not participants
+            and tournament.player_count > 0
+            and tournament.club_slug
+        ):
             # The leaderboard endpoint returned 404 (common for Swiss club
             # tournaments on Chess.com whose internal URL differs from Arena).
             # Fall back to the full club member list as the participant set.
@@ -458,11 +470,11 @@ class ChessComClient(ChessProvider):
         # so that games from the final rounds (which can complete after the
         # official end_time) are still captured.
         _END_BUFFER = 6 * 3600  # seconds
-        effective_end = max(tournament.end_date, tournament.start_date) + _END_BUFFER
-
-        months = self._months_in_range(
-            tournament.start_date, effective_end
+        effective_end = (
+            max(tournament.end_date, tournament.start_date) + _END_BUFFER
         )
+
+        months = self._months_in_range(tournament.start_date, effective_end)
         seen: set[str] = set()
         games: list[Game] = []
 
@@ -482,29 +494,15 @@ class ChessComClient(ChessProvider):
                     end_time = raw.get("end_time")
                     if end_time is None:
                         continue
-                    if not (
-                        tournament.start_date
-                        <= end_time
-                        <= effective_end
-                    ):
+                    if not (tournament.start_date <= end_time <= effective_end):
                         continue
 
-                    white = (
-                        raw.get("white", {}).get("username", "").lower()
-                    )
-                    black = (
-                        raw.get("black", {}).get("username", "").lower()
-                    )
-                    if (
-                        white not in participants
-                        or black not in participants
-                    ):
+                    white = raw.get("white", {}).get("username", "").lower()
+                    black = raw.get("black", {}).get("username", "").lower()
+                    if white not in participants or black not in participants:
                         continue
 
-                    key = (
-                        raw.get("url")
-                        or f"{white}:{black}:{end_time}"
-                    )
+                    key = raw.get("url") or f"{white}:{black}:{end_time}"
                     if key in seen:
                         continue
                     seen.add(key)
@@ -671,9 +669,7 @@ class ChessComClient(ChessProvider):
 
         params = kwargs.get("params")
         cache_key = (
-            url
-            if not params
-            else f"{url}?{json.dumps(params, sort_keys=True)}"
+            url if not params else f"{url}?{json.dumps(params, sort_keys=True)}"
         )
 
         cached = self._cache.get(cache_key)
@@ -684,19 +680,13 @@ class ChessComClient(ChessProvider):
         self.network_requests += 1
         r = self.session.get(url, **kwargs)
         if r.status_code == 200:
-            try:
+            with contextlib.suppress(ValueError, OSError):
                 self._cache.set(cache_key, r.json(), ttl)
-            except (ValueError, OSError):
-                pass
         elif r.status_code == 404:
             # Cache 404s so repeated probes (e.g. leaderboard URL
             # variants) don't hit the network every time.
-            try:
-                self._cache.set(
-                    cache_key, {"_status": 404}, ttl
-                )
-            except (ValueError, OSError):
-                pass
+            with contextlib.suppress(ValueError, OSError):
+                self._cache.set(cache_key, {"_status": 404}, ttl)
         return r
 
     @staticmethod
@@ -721,9 +711,7 @@ class ChessComClient(ChessProvider):
         )
 
     @staticmethod
-    def _months_in_range(
-        start_ts: int, end_ts: int
-    ) -> list[tuple[int, int]]:
+    def _months_in_range(start_ts: int, end_ts: int) -> list[tuple[int, int]]:
         """Return all (year, month) pairs that overlap with a timestamp range.
 
         Args:

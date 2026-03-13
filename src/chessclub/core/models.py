@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-
 # ----------------------
 # Club
 # ----------------------
@@ -165,8 +164,11 @@ class Game:
             Mean of whichever accuracy values are present, or ``None`` if
             neither player has been reviewed.
         """
-        vals = [v for v in (self.white_accuracy, self.black_accuracy)
-                if v is not None]
+        vals = [
+            v
+            for v in (self.white_accuracy, self.black_accuracy)
+            if v is not None
+        ]
         return sum(vals) / len(vals) if vals else None
 
 

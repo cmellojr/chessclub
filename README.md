@@ -25,7 +25,8 @@
 - **Head-to-head matchups** — `club matchups` shows win/loss/draw records for every pair of players
 - **Attendance ranking** — `club attendance` ranks players by tournament participation %, current streak, and longest streak
 - **Club records** — `club records` identifies best tournament score, most active player, highest accuracy, biggest tournament, and more
-- **Swiss + Arena support** — works for both tournament formats; falls back to the club member list when Chess.com does not expose a leaderboard for Swiss events
+- **Multi-platform** — `--provider chesscom` (default) or `--provider lichess`; same commands and output regardless of platform
+- **Swiss + Arena support** — works for both tournament formats on both platforms
 - **Multiple output formats** — `--output table` (default), `--output json`, `--output csv` on all commands
 - **Disk cache** — SQLite-backed cache at `~/.cache/chessclub/cache.db` with TTLs calibrated to data volatility; repeated commands run instantly; managed via `chessclub cache stats/clear`
 - **Decoupled authentication** — cookie-based session auth and OAuth 2.0 PKCE with loopback server
@@ -55,6 +56,11 @@ chessclub club games clube-de-xadrez-de-jundiai --last-n 3
 # View games from a specific tournament (by list #, name, or ID)
 chessclub club tournaments clube-de-xadrez-de-jundiai --games 141
 chessclub club tournaments clube-de-xadrez-de-jundiai --games "26o Torneio"
+
+# Lichess — use --provider / -p to switch platform
+chessclub -p lichess club stats clube-campineiro-de-xadrez
+chessclub -p lichess club members clube-campineiro-de-xadrez
+chessclub -p lichess club tournaments clube-campineiro-de-xadrez
 
 # Verbose mode — shows timing, cache/network stats, and auth method
 chessclub -v club stats clube-de-xadrez-de-jundiai
@@ -367,11 +373,15 @@ All credential files are created with `0o600` permissions.
 └───────────────────┬─────────────────────────────┘
                     │ imports
 ┌───────────────────▼─────────────────────────────┐
-│  providers/chesscom                             │
-│  · ChessComClient     implements ChessProvider  │
-│  · ChessComCookieAuth implements AuthProvider   │
-│  · ChessComOAuth      OAuth 2.0 PKCE + Loopback │
-│  · SQLiteCache        ~/.cache/chessclub/       │
+│  providers/                                     │
+│  ┌─ chesscom/                                   │
+│  │  · ChessComClient     implements ChessProvider│
+│  │  · ChessComCookieAuth implements AuthProvider │
+│  │  · ChessComOAuth      OAuth 2.0 PKCE          │
+│  │  · SQLiteCache        ~/.cache/chessclub/     │
+│  └─ lichess/                                    │
+│     · LichessClient      implements ChessProvider│
+│     · LichessTokenAuth   implements AuthProvider │
 └───────────────────┬─────────────────────────────┘
                     │ imports abstractions from
        ┌────────────▼──────────┐  ┌─────────────────────────┐
@@ -400,10 +410,13 @@ All credential files are created with `0o600` permissions.
 **Dependency rule:** `core/` imports nothing from this project. `services/`
 imports only from `core/`. No layer imports from a layer above it.
 
-### Adding a new platform (e.g. Lichess)
+### Adding a new platform
 
-1. `providers/lichess/auth.py` — implement `AuthProvider`.
-2. `providers/lichess/client.py` — implement `ChessProvider`.
+The Lichess provider (`providers/lichess/`) is the reference implementation.
+To add another platform (e.g. Lishogi):
+
+1. `providers/lishogi/auth.py` — implement `AuthProvider`.
+2. `providers/lishogi/client.py` — implement `ChessProvider`.
 3. `chessclub_cli/main.py` — wire in the composition root.
 
 No other files change.
@@ -425,10 +438,13 @@ src/
 │   │   ├── interfaces.py     # AuthProvider ABC + AuthCredentials
 │   │   └── credentials.py    # credentials.json + oauth_token.json
 │   ├── providers/
-│   │   └── chesscom/
-│   │       ├── auth.py       # ChessComCookieAuth + ChessComOAuth
-│   │       ├── cache.py      # SQLiteCache + CachedResponse
-│   │       └── client.py     # ChessComClient
+│   │   ├── chesscom/
+│   │   │   ├── auth.py       # ChessComCookieAuth + ChessComOAuth
+│   │   │   ├── cache.py      # SQLiteCache + CachedResponse
+│   │   │   └── client.py     # ChessComClient
+│   │   └── lichess/
+│   │       ├── auth.py       # LichessTokenAuth
+│   │       └── client.py     # LichessClient
 │   └── services/
 │       ├── club_service.py            # ClubService
 │       ├── leaderboard_service.py     # LeaderboardService
@@ -457,6 +473,8 @@ tests/
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
+ruff check src/          # lint
+ruff format src/         # auto-format
 ```
 
 ---
@@ -465,7 +483,7 @@ pytest tests/ -v
 
 ### Platforms
 - [x] Chess.com
-- [ ] Lichess
+- [x] Lichess
 - [ ] Lishogi
 
 ### Features

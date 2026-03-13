@@ -2,7 +2,13 @@
 
 from abc import ABC, abstractmethod
 
-from chessclub.core.models import Club, Game, Member, Tournament, TournamentResult
+from chessclub.core.models import (
+    Club,
+    Game,
+    Member,
+    Tournament,
+    TournamentResult,
+)
 
 
 class ChessProvider(ABC):

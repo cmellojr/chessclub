@@ -96,13 +96,15 @@ class LeaderboardService:
         result: list[PlayerStats] = []
         for s in stats.values():
             played = s["tournaments_played"]
-            result.append(PlayerStats(
-                username=s["username"],
-                tournaments_played=played,
-                wins=s["wins"],
-                total_score=s["total_score"],
-                avg_score=s["total_score"] / played if played else 0.0,
-            ))
+            result.append(
+                PlayerStats(
+                    username=s["username"],
+                    tournaments_played=played,
+                    wins=s["wins"],
+                    total_score=s["total_score"],
+                    avg_score=s["total_score"] / played if played else 0.0,
+                )
+            )
 
         result.sort(key=lambda p: (p.total_score, p.wins), reverse=True)
         return result
