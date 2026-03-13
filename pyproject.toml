@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.15"]
 
 [project.scripts]
 chessclub = "chessclub_cli.main:app"
@@ -34,3 +34,19 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "B008",   # typer.Option() in defaults — required by Typer
+    "B904",   # raise-without-from-inside-except — fix incrementally
+    "E501",   # line-too-long — enforced by ruff format instead
+    "SIM102", # collapsible-if — readability preference
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["chessclub", "chessclub_cli"]

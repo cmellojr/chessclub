@@ -34,9 +34,7 @@ class LichessTokenAuth(AuthProvider):
                 environment variable and config file when ``None``.
         """
         self._token: str | None = (
-            token
-            or os.getenv(self._ENV_VAR)
-            or self._load_from_file()
+            token or os.getenv(self._ENV_VAR) or self._load_from_file()
         )
 
     # ------------------------------------------------------------------

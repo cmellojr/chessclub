@@ -16,7 +16,7 @@ Key differences from the Chess.com provider:
 
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 import requests
 
@@ -40,12 +40,12 @@ from chessclub.providers.chesscom.cache import SQLiteCache
 # TTL constants (seconds)
 # ------------------------------------------------------------------
 
-_TTL_TEAM_INFO = 24 * 3600          # team name/description rarely changes
-_TTL_TEAM_MEMBERS = 3600            # joins/leaves are infrequent
-_TTL_TOURNAMENT_LIST = 3600         # new tournaments appear at most weekly
-_TTL_FINISHED_TOURNAMENT = 30 * 24 * 3600   # results are immutable
-_TTL_GAME_ARCHIVE = 30 * 24 * 3600          # finished games are immutable
-_TTL_PLAYER_PROFILE = 24 * 3600     # rating/title updated at most daily
+_TTL_TEAM_INFO = 24 * 3600  # team name/description rarely changes
+_TTL_TEAM_MEMBERS = 3600  # joins/leaves are infrequent
+_TTL_TOURNAMENT_LIST = 3600  # new tournaments appear at most weekly
+_TTL_FINISHED_TOURNAMENT = 30 * 24 * 3600  # results are immutable
+_TTL_GAME_ARCHIVE = 30 * 24 * 3600  # finished games are immutable
+_TTL_PLAYER_PROFILE = 24 * 3600  # rating/title updated at most daily
 
 # ------------------------------------------------------------------
 # Rating time-control preference (most reliable → least reliable)
@@ -279,9 +279,7 @@ class LichessClient(ChessProvider):
         items = self._get_ndjson(url, _TTL_TOURNAMENT_LIST)
         return [self._map_arena_tournament(t, slug) for t in items]
 
-    def _get_swiss_results(
-        self, tournament_id: str
-    ) -> list[TournamentResult]:
+    def _get_swiss_results(self, tournament_id: str) -> list[TournamentResult]:
         url = f"{self.BASE_URL}/swiss/{tournament_id}/results"
         items = self._get_ndjson(url, _TTL_FINISHED_TOURNAMENT)
         return [
@@ -295,9 +293,7 @@ class LichessClient(ChessProvider):
             for item in items
         ]
 
-    def _get_arena_results(
-        self, tournament_id: str
-    ) -> list[TournamentResult]:
+    def _get_arena_results(self, tournament_id: str) -> list[TournamentResult]:
         url = f"{self.BASE_URL}/tournament/{tournament_id}/results"
         items = self._get_ndjson(url, _TTL_FINISHED_TOURNAMENT)
         return [
@@ -384,9 +380,7 @@ class LichessClient(ChessProvider):
             start_date=LichessClient._iso_to_s(data.get("startsAt")),
             end_date=LichessClient._iso_to_s(data.get("finishedAt")),
             player_count=data.get("nbPlayers", 0),
-            winner_username=(
-                winner_user.get("name") or winner_user.get("id")
-            ),
+            winner_username=(winner_user.get("name") or winner_user.get("id")),
             winner_score=winner.get("points") if winner else None,
             club_slug=slug,
             url=f"https://lichess.org/swiss/{tid}",
@@ -461,9 +455,7 @@ class LichessClient(ChessProvider):
     # HTTP helpers
     # ------------------------------------------------------------------
 
-    def _get_json(
-        self, url: str, ttl: int, **params
-    ) -> dict | list | None:
+    def _get_json(self, url: str, ttl: int, **params) -> dict | list | None:
         """GET a JSON endpoint with caching and rate-limit back-off.
 
         Args:
@@ -495,9 +487,7 @@ class LichessClient(ChessProvider):
         self._cache.set(key, {"_status": 200, "_body": body}, ttl)
         return body
 
-    def _get_ndjson(
-        self, url: str, ttl: int, **params
-    ) -> list[dict]:
+    def _get_ndjson(self, url: str, ttl: int, **params) -> list[dict]:
         """GET an ND-JSON endpoint with caching.
 
         Args:
@@ -546,12 +536,10 @@ class LichessClient(ChessProvider):
         """
         headers = extra_headers or {}
         for attempt in range(3):
-            resp = self._session.get(
-                url, params=params, headers=headers
-            )
+            resp = self._session.get(url, params=params, headers=headers)
             if resp.status_code != 429:
                 return resp
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
         return resp
 
     # ------------------------------------------------------------------
@@ -583,9 +571,7 @@ class LichessClient(ChessProvider):
     def _cache_key(url: str, params: dict) -> str:
         if not params:
             return url
-        pairs = "&".join(
-            f"{k}={v}" for k, v in sorted(params.items())
-        )
+        pairs = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
         return f"{url}?{pairs}"
 
     @staticmethod

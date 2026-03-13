@@ -6,6 +6,7 @@ ChessComCookieAuth, ChessComOAuth).  All other layers depend solely on
 abstractions.
 """
 
+import contextlib
 import csv
 import functools
 import io
@@ -38,6 +39,7 @@ from chessclub.core.exceptions import AuthenticationRequiredError
 from chessclub.providers.chesscom.auth import ChessComCookieAuth, ChessComOAuth
 from chessclub.providers.chesscom.client import ChessComClient
 from chessclub.services.club_service import ClubService
+
 
 class Provider(str, Enum):
     """Supported chess platforms."""
@@ -80,6 +82,7 @@ def _main_callback(
     global _verbose, _provider_name
     _verbose = verbose
     _provider_name = provider.value
+
 
 app.add_typer(club_app, name="club")
 app.add_typer(auth_app, name="auth")
@@ -136,6 +139,7 @@ def _print_footer(elapsed: float) -> None:
 
 def _timed(func):
     """Decorator that prints elapsed time and cache stats after a command."""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         global _current_provider
@@ -146,6 +150,7 @@ def _timed(func):
         finally:
             elapsed = time.perf_counter() - t0
             _print_footer(elapsed)
+
     return wrapper
 
 
@@ -185,6 +190,7 @@ def _get_service() -> ClubService:
     if _provider_name == "lichess":
         from chessclub.providers.lichess.auth import LichessTokenAuth
         from chessclub.providers.lichess.client import LichessClient
+
         auth = LichessTokenAuth()
         provider = LichessClient(user_agent=_USER_AGENT, auth=auth)
         _current_provider = provider
@@ -242,9 +248,7 @@ def _to_csv(rows: list[dict], fieldnames: list[str]) -> str:
         A CSV-formatted string including a header row.
     """
     buf = io.StringIO()
-    writer = csv.DictWriter(
-        buf, fieldnames=fieldnames, extrasaction="ignore"
-    )
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
     return buf.getvalue()
@@ -312,12 +316,9 @@ def login():
     """Authenticate via OAuth 2.0 PKCE (requires Chess.com developer access)."""
     client_id = _resolve_client_id()
     if not client_id:
+        console.print("[red]No client_id found.[/red]\n")
         console.print(
-            "[red]No client_id found.[/red]\n"
-        )
-        console.print(
-            "Each user must obtain their own client_id "
-            "from Chess.com:\n"
+            "Each user must obtain their own client_id from Chess.com:\n"
         )
         console.print(
             "  1. Join the Chess.com Developer Community\n"
@@ -397,17 +398,13 @@ def status():
             )
         else:
             console.print("[red]✗ OAuth token expired or invalid.[/red]")
-            console.print(
-                "Run [bold]chessclub auth login[/bold] to renew."
-            )
+            console.print("Run [bold]chessclub auth login[/bold] to renew.")
             raise typer.Exit(1)
     else:
         # Cookie session — validate against an authenticated endpoint.
         console.print("[dim]Validating with Chess.com...[/dim]")
         try:
-            client = ChessComClient(
-                user_agent=_USER_AGENT, auth=cookie_auth
-            )
+            client = ChessComClient(user_agent=_USER_AGENT, auth=cookie_auth)
             club = client.get_club(_VALIDATION_CLUB)
             if club.provider_id:
                 r = client.session.get(
@@ -421,13 +418,9 @@ def status():
                         "Session cookies are expired or invalid."
                     )
                 r.raise_for_status()
-            console.print(
-                "[green]✓ Active credentials are valid.[/green]"
-            )
+            console.print("[green]✓ Active credentials are valid.[/green]")
         except AuthenticationRequiredError:
-            console.print(
-                "[red]✗ Credentials expired or invalid.[/red]"
-            )
+            console.print("[red]✗ Credentials expired or invalid.[/red]")
             console.print(
                 "Run [bold]chessclub auth login[/bold] or "
                 "[bold]chessclub auth setup[/bold] to renew."
@@ -468,10 +461,8 @@ def stats(
 
     # Tournament count requires auth; omit silently if unavailable.
     tournaments_count: int | None = None
-    try:
+    with contextlib.suppress(AuthenticationRequiredError, Exception):
         tournaments_count = len(service.get_club_tournaments(slug))
-    except (AuthenticationRequiredError, Exception):
-        pass
 
     club.matches_count = tournaments_count
 
@@ -504,9 +495,7 @@ def stats(
             code = country_url.rstrip("/").split("/")[-1].upper()
             if len(code) != 2 or not code.isalpha():
                 return ""
-            return "".join(
-                chr(0x1F1E0 + ord(c) - ord("A")) for c in code
-            )
+            return "".join(chr(0x1F1E0 + ord(c) - ord("A")) for c in code)
 
         # Strip HTML tags; convert <br> to newline first
         def _strip_html(html: str | None) -> str:
@@ -614,7 +603,9 @@ def members(
         table.add_column("Joined", justify="right")
 
         for m in data:
-            activity_label = _ACTIVITY_LABEL.get(m.activity or "", m.activity or "—")
+            activity_label = _ACTIVITY_LABEL.get(
+                m.activity or "", m.activity or "—"
+            )
             activity_style = _ACTIVITY_STYLE.get(m.activity or "", "")
             styled_activity = (
                 f"[{activity_style}]{activity_label}[/{activity_style}]"
@@ -734,8 +725,15 @@ def tournaments(
 
         elif output == OutputFormat.csv:
             _gfields = [
-                "white", "black", "result", "opening_eco", "played_at",
-                "white_accuracy", "black_accuracy", "avg_accuracy", "url",
+                "white",
+                "black",
+                "result",
+                "opening_eco",
+                "played_at",
+                "white_accuracy",
+                "black_accuracy",
+                "avg_accuracy",
+                "url",
             ]
             rows = []
             for g in game_data:
@@ -769,7 +767,9 @@ def tournaments(
                 )
 
             console.print(gtable)
-            using_member_fallback = participant_count == 0 and len(game_data) > 0
+            using_member_fallback = (
+                participant_count == 0 and len(game_data) > 0
+            )
             participants_label = (
                 "club members (leaderboard unavailable)"
                 if using_member_fallback
@@ -803,7 +803,7 @@ def tournaments(
     if output == OutputFormat.json:
         rows = [asdict(t) for t in data]
         if details:
-            for row, t in zip(rows, data):
+            for row, t in zip(rows, data, strict=True):
                 try:
                     results = service.get_tournament_results(
                         t.id,
@@ -825,9 +825,15 @@ def tournaments(
                 "--output csv. Showing summary only."
             )
         _fields = [
-            "id", "name", "tournament_type", "status",
-            "start_date", "end_date", "player_count",
-            "winner_username", "winner_score",
+            "id",
+            "name",
+            "tournament_type",
+            "status",
+            "start_date",
+            "end_date",
+            "player_count",
+            "winner_username",
+            "winner_score",
         ]
         print(_to_csv([asdict(t) for t in data], _fields), end="")
 
@@ -943,7 +949,8 @@ def games(
 
     if min_accuracy > 0:
         data = [
-            g for g in data
+            g
+            for g in data
             if g.avg_accuracy is not None and g.avg_accuracy >= min_accuracy
         ]
 
@@ -981,9 +988,7 @@ def games(
         print(_to_csv(rows, _fields), end="")
 
     else:
-        table = Table(
-            title=f"Tournament Games — {slug}", show_lines=False
-        )
+        table = Table(title=f"Tournament Games — {slug}", show_lines=False)
         table.add_column("Tournament", style="dim", no_wrap=False)
         table.add_column("White", style="cyan")
         table.add_column("W%", justify="right")
@@ -1011,9 +1016,7 @@ def games(
             f"({with_accuracy} with accuracy data)[/]"
         )
         if not data:
-            scope_hint = (
-                f"last {last_n}" if n else "all"
-            )
+            scope_hint = f"last {last_n}" if n else "all"
             console.print(
                 f"[yellow]Tip:[/yellow] No games were found in the {scope_hint} "
                 "tournament(s). The leaderboard endpoint may not be available "
@@ -1098,8 +1101,11 @@ def leaderboard(
 
     elif output == OutputFormat.csv:
         _fields = [
-            "username", "tournaments_played", "wins",
-            "total_score", "avg_score",
+            "username",
+            "tournaments_played",
+            "wins",
+            "total_score",
+            "avg_score",
         ]
         print(_to_csv([asdict(p) for p in data], _fields), end="")
 
@@ -1126,9 +1132,7 @@ def leaderboard(
             )
 
         console.print(table)
-        console.print(
-            f"[dim]{len(data)} players · {period_label}[/dim]"
-        )
+        console.print(f"[dim]{len(data)} players · {period_label}[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1183,9 +1187,7 @@ def matchups(
         raise typer.Exit(1)
 
     if not data:
-        console.print(
-            "[yellow]No matchup data found.[/yellow]"
-        )
+        console.print("[yellow]No matchup data found.[/yellow]")
         raise typer.Exit(0)
 
     if output == OutputFormat.json:
@@ -1193,8 +1195,13 @@ def matchups(
 
     elif output == OutputFormat.csv:
         _fields = [
-            "player_a", "player_b", "wins_a", "wins_b",
-            "draws", "total_games", "last_played",
+            "player_a",
+            "player_b",
+            "wins_a",
+            "wins_b",
+            "draws",
+            "total_games",
+            "last_played",
         ]
         print(_to_csv([asdict(m) for m in data], _fields), end="")
 
@@ -1221,10 +1228,7 @@ def matchups(
             )
 
         console.print(table)
-        console.print(
-            f"[dim]{len(data)} matchups · "
-            f"{scope} tournaments[/dim]"
-        )
+        console.print(f"[dim]{len(data)} matchups · {scope} tournaments[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1240,8 +1244,7 @@ def attendance(
         0,
         "--last-n",
         help=(
-            "Only consider the N most recent tournaments. "
-            "0 = all tournaments."
+            "Only consider the N most recent tournaments. 0 = all tournaments."
         ),
     ),
     output: OutputFormat = typer.Option(
@@ -1285,8 +1288,12 @@ def attendance(
 
     elif output == OutputFormat.csv:
         _fields = [
-            "username", "tournaments_played", "total_tournaments",
-            "participation_pct", "current_streak", "max_streak",
+            "username",
+            "tournaments_played",
+            "total_tournaments",
+            "participation_pct",
+            "current_streak",
+            "max_streak",
         ]
         print(_to_csv([asdict(a) for a in data], _fields), end="")
 
@@ -1314,11 +1321,7 @@ def attendance(
             )
 
         console.print(table)
-        console.print(
-            f"[dim]{len(data)} players · "
-            f"{scope} tournaments[/dim]"
-        )
-
+        console.print(f"[dim]{len(data)} players · {scope} tournaments[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1364,8 +1367,7 @@ def records(
         n: int | None = last_n if last_n > 0 else None
         scope = f"last {last_n}" if n else "all"
         with console.status(
-            f"[dim]Fetching records ({scope} tournaments "
-            f"for games)…[/dim]",
+            f"[dim]Fetching records ({scope} tournaments for games)…[/dim]",
             spinner="dots",
         ):
             data = rs.get_records(slug, last_n=n)
@@ -1382,9 +1384,7 @@ def records(
 
     elif output == OutputFormat.csv:
         _fields = ["category", "value", "player", "detail", "date"]
-        print(
-            _to_csv([asdict(r) for r in data], _fields), end=""
-        )
+        print(_to_csv([asdict(r) for r in data], _fields), end="")
 
     else:
         table = Table(
@@ -1407,9 +1407,7 @@ def records(
             )
 
         console.print(table)
-        console.print(
-            f"[dim]{len(data)} records[/dim]"
-        )
+        console.print(f"[dim]{len(data)} records[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1464,9 +1462,7 @@ def rating_history(
             f"({scope} tournaments)…[/dim]",
             spinner="dots",
         ):
-            data = rhs.get_rating_history(
-                club, username, last_n=last_n
-            )
+            data = rhs.get_rating_history(club, username, last_n=last_n)
     except AuthenticationRequiredError as e:
         console.print(f"[red]Error:[/red] {e}", highlight=False)
         raise typer.Exit(1)
@@ -1483,9 +1479,13 @@ def rating_history(
 
     elif output == OutputFormat.csv:
         _fields = [
-            "tournament_id", "tournament_name",
-            "tournament_type", "tournament_date",
-            "rating", "position", "score",
+            "tournament_id",
+            "tournament_name",
+            "tournament_type",
+            "tournament_date",
+            "rating",
+            "position",
+            "score",
         ]
         print(_to_csv([asdict(s) for s in data], _fields), end="")
 
@@ -1514,9 +1514,7 @@ def rating_history(
             )
 
         console.print(table)
-        console.print(
-            f"[dim]{len(data)} tournaments · {username}[/dim]"
-        )
+        console.print(f"[dim]{len(data)} tournaments · {username}[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1537,8 +1535,7 @@ def cache_stats() -> None:
         raise typer.Exit(1)
     n = s["total"]
     console.print(
-        f"Entries : {n} total  "
-        f"({s['active']} active, {s['expired']} expired)"
+        f"Entries : {n} total  ({s['active']} active, {s['expired']} expired)"
     )
     console.print(f"Location: {SQLiteCache._DB_PATH}")
     console.print(f"Size    : {s['size_bytes'] / 1024:.1f} KB")
