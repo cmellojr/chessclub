@@ -60,11 +60,12 @@ Players who use more than one username can be grouped under a single unified ide
 - [ ] Display `display_name` instead of individual usernames in CLI output when an alias exists
 - [ ] Add unit tests for `AliasResolver` and management commands
 
-### Phase 4 — Platform Expansion
+### Phase 4 — Platform Expansion ✅
 
-- [ ] Implement `providers/lichess/auth.py` with API token support
-- [ ] Implement `providers/lichess/client.py` satisfying the `ChessProvider` interface
-- [ ] Register the Lichess provider in the composition root (`chessclub_cli/main.py`)
+- [x] Implement `providers/lichess/auth.py` with API token support
+- [x] Implement `providers/lichess/client.py` satisfying the `ChessProvider` interface
+- [x] Register the Lichess provider in the composition root (`chessclub_cli/main.py`)
+- [x] Add `--provider` / `-p` global flag to select platform: `chesscom` (default) or `lichess`
 - [ ] Add integration tests for the Lichess provider
 
 ---

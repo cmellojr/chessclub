@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A modular Python library and CLI for consuming chess platform APIs (Chess.com today; Lichess, Lishogi, and Xiangqi.com planned). The goal is a multi-platform abstraction layer built around the Provider Pattern, where the core domain never depends on any specific platform.
+A modular Python library and CLI for consuming chess platform APIs (Chess.com and Lichess today; Lishogi and Xiangqi.com planned). The goal is a multi-platform abstraction layer built around the Provider Pattern, where the core domain never depends on any specific platform.
 
 ## Development Setup
 
@@ -16,7 +16,15 @@ pip install -e .
 chessclub --help
 ```
 
-No linting or automated test runner is currently configured.
+### Linting
+
+```bash
+ruff check src/                 # lint (E/F/W/I/UP/B/SIM rules)
+ruff format --check src/        # verify formatting
+ruff format src/                # auto-format
+```
+
+Configuration lives in `pyproject.toml` under `[tool.ruff]`. No automated test runner beyond `pytest` is currently configured.
 
 ## Architecture
 
@@ -35,10 +43,13 @@ src/
 │   │   └── credentials.py   # credentials.json (cookies) + oauth_token.json (OAuth)
 │   │
 │   ├── providers/           # Platform-specific implementations
-│   │   └── chesscom/
-│   │       ├── auth.py      # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
-│   │       ├── cache.py     # SQLiteCache + CachedResponse
-│   │       └── client.py    # ChessComClient implements ChessProvider
+│   │   ├── chesscom/
+│   │   │   ├── auth.py      # ChessComCookieAuth + ChessComOAuth (PKCE + loopback)
+│   │   │   ├── cache.py     # SQLiteCache + CachedResponse
+│   │   │   └── client.py    # ChessComClient implements ChessProvider
+│   │   └── lichess/
+│   │       ├── auth.py      # LichessTokenAuth (API token or public access)
+│   │       └── client.py    # LichessClient implements ChessProvider
 │   │
 │   └── services/            # Business logic
 │       ├── club_service.py            # ClubService receives ChessProvider via DI
@@ -88,6 +99,13 @@ Authentication is a **separate layer** from providers. Providers receive an `Aut
   - `is_authenticated()` — `True` if a valid or refreshable token exists on disk.
   - See: https://www.chess.com/clubs/forum/view/guide-applying-for-oauth-access
 
+### Lichess implementation (`providers/lichess/auth.py`)
+
+- `LichessTokenAuth` — optional API token for higher rate limits. Most Lichess
+  endpoints are public, so the provider works without authentication. When a
+  token is provided (via `LICHESS_API_TOKEN` env var or constructor), it is
+  sent as a `Bearer` header.
+
 ### Credential storage (`auth/credentials.py`)
 
 Two separate files under `~/.config/chessclub/`, both with `0o600` permissions:
@@ -115,10 +133,13 @@ class ChessProvider(ABC):
 
 All services (`ClubService`, `LeaderboardService`, `RatingHistoryService`, `MatchupService`, `AttendanceService`, `RecordsService`) depend only on `ChessProvider` — they never import a concrete provider.
 
-### Adding a new platform (e.g. Lichess)
+### Adding a new platform
 
-1. Create `providers/lichess/auth.py` → implement `AuthProvider` for Lichess tokens.
-2. Create `providers/lichess/client.py` → implement `ChessProvider`.
+The Lichess provider (`providers/lichess/`) is the reference implementation.
+To add another platform (e.g. Lishogi):
+
+1. Create `providers/lishogi/auth.py` → implement `AuthProvider`.
+2. Create `providers/lishogi/client.py` → implement `ChessProvider`.
 3. Wire in `chessclub_cli/main.py` (composition root) — no other files change.
 
 ## Domain Models
@@ -143,10 +164,26 @@ All models are dataclasses defined in `core/models.py`. Providers must map raw A
 - **Public endpoints** (`api.chess.com/pub`): No auth needed — club info, members, player profiles.
 - **Internal web endpoints** (`www.chess.com/callback`): Requires session cookies — club tournaments (auto-paginated). The numeric `club_id` is resolved from the public API response before calling these endpoints.
 
+## API Strategy — Lichess
+
+- **Public API** (`lichess.org/api`): Most endpoints are public and rate-limited
+  (no auth needed). An API token raises the rate limit.
+- **Teams** (not clubs): Lichess uses "teams" instead of "clubs". The slug maps
+  to `/api/team/{slug}`.
+- **ND-JSON streaming**: Team members (`/api/team/{slug}/users`) and tournament
+  results return newline-delimited JSON. `LichessClient._get_ndjson()` handles
+  streaming and parsing.
+- **Bulk user enrichment**: `/api/team/{slug}/users` returns minimal data
+  (`id`, `joinedTeamAt`). Full profiles (ratings, title, last seen) are fetched
+  via `POST /api/users` in batches of 300.
+- **Tournament types**: Arena (`/api/tournament/{id}`) and Swiss
+  (`/api/swiss/{id}`). Arena timestamps are milliseconds; Swiss timestamps are
+  ISO 8601.
+
 ## CLI Command Structure
 
 ```
-chessclub [--verbose/-v]
+chessclub [--provider/-p chesscom|lichess] [--verbose/-v]
 ├── club
 │   ├── stats <slug>                    # Club info + stats (public API, no auth)
 │   ├── members <slug> [--details]      # Member list with activity tier (public API)
@@ -177,14 +214,14 @@ chessclub [--verbose/-v]
 ```
 
 The CLI (`chessclub_cli/main.py`) is the **composition root**: the only module that
-instantiates concrete classes (`ChessComCookieAuth`, `ChessComOAuth`, `ChessComClient`).
-Everything else depends on abstractions.
+instantiates concrete classes. Everything else depends on abstractions.
 
-Active auth method selection in `_get_service()`:
-- **Always** uses `ChessComCookieAuth` as the base (session cookies for
-  internal `/callback/` endpoints).
-- **Additionally** layers `ChessComOAuth` Bearer header on the session when
-  `CHESSCOM_CLIENT_ID` is set AND `oauth_token.json` exists.
+Provider selection via `--provider` / `-p` (default: `chesscom`):
+- **`chesscom`**: uses `ChessComCookieAuth` as the base (session cookies for
+  internal `/callback/` endpoints). Additionally layers `ChessComOAuth` Bearer
+  header when `CHESSCOM_CLIENT_ID` is set AND `oauth_token.json` exists.
+- **`lichess`**: uses `LichessTokenAuth` (public access; optional API token
+  via `LICHESS_API_TOKEN` env var for higher rate limits).
 
 ## Exceptions
 
