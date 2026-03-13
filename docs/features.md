@@ -5,10 +5,27 @@ each one works internally, and what to expect from the output.
 
 ---
 
+## Platform selection
+
+All commands accept `--provider` / `-p` to choose the chess platform:
+
+```bash
+chessclub -p chesscom club stats clube-de-xadrez-de-jundiai    # default
+chessclub -p lichess  club stats clube-campineiro-de-xadrez
+```
+
+The default provider is `chesscom`. Lichess uses "teams" instead of "clubs"
+but the CLI interface is identical — use the team slug as `<slug>`.
+
+---
+
 ## Authentication
 
-Most club-data endpoints on Chess.com require a valid session. The `auth`
+**Chess.com:** Most club-data endpoints require a valid session. The `auth`
 group manages credentials locally under `~/.config/chessclub/`.
+
+**Lichess:** Most endpoints are public. An optional API token
+(`LICHESS_API_TOKEN` env var) raises rate limits but is not required.
 
 ### `chessclub auth login` — OAuth 2.0 (recommended)
 
@@ -93,8 +110,9 @@ Removes all saved credentials (`credentials.json` and `oauth_token.json`).
 
 ### `chessclub club stats <slug>`
 
-Displays general information about a club retrieved from the Chess.com public
-API (`api.chess.com/pub/club/{slug}`). No authentication required.
+Displays general information about a club. On Chess.com, fetches from the
+public API (`api.chess.com/pub/club/{slug}`). On Lichess, fetches from
+`lichess.org/api/team/{slug}`. No authentication required on either platform.
 
 ```
 chessclub club stats clube-de-xadrez-de-jundiai
