@@ -90,14 +90,16 @@ class AttendanceService:
                 else:
                     streak = 0
 
-            records.append(AttendanceRecord(
-                username=player,
-                tournaments_played=played,
-                total_tournaments=total,
-                participation_pct=round(pct, 1),
-                current_streak=current,
-                max_streak=max_streak,
-            ))
+            records.append(
+                AttendanceRecord(
+                    username=player,
+                    tournaments_played=played,
+                    total_tournaments=total,
+                    participation_pct=round(pct, 1),
+                    current_streak=current,
+                    max_streak=max_streak,
+                )
+            )
 
         records.sort(
             key=lambda r: (r.participation_pct, r.max_streak),
