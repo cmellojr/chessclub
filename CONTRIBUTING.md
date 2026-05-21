@@ -35,7 +35,7 @@ git checkout -b feature/my-feature
 ## Making Changes
 
 1. Keep changes focused — one feature or fix per branch.
-2. Follow the [dependency rule](CLAUDE.md#architecture): `core/` never imports from other layers; `services/` never imports from `providers/`.
+2. Follow the [dependency rule](AGENTS.md#architecture): `core/` never imports from other layers; `services/` never imports from `providers/`.
 3. Add domain models to `core/models.py`; never return raw dicts from services.
 4. Use domain exceptions from `core/exceptions.py` — no bare `except:` or `except Exception`.
 
@@ -64,7 +64,7 @@ Ruff configuration is in `pyproject.toml` under `[tool.ruff]`.
 1. Push your branch and open a PR against `develop` (not `main`).
 2. Describe *what* you changed and *why*.
 3. If you added a new command or service, update the relevant docs in `docs/`.
-4. If you added a new platform provider, update the architecture section in `CLAUDE.md`.
+4. If you added a new platform provider, update the architecture section in `AGENTS.md`.
 
 ## Adding a New Platform Provider
 
@@ -76,7 +76,7 @@ The project is designed to be extended. The Lichess provider
 3. Wire the new provider in `src/chessclub_cli/main.py` (composition root only).
 4. No changes to `core/` or `services/` should be necessary.
 
-See [CLAUDE.md](CLAUDE.md) for the full architecture guide.
+See [AGENTS.md](AGENTS.md) for the full architecture guide.
 
 ## Code of Conduct
 
