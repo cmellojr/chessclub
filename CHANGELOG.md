@@ -74,7 +74,7 @@ First public release.
 - `docs/usage.md` — user guide with real output examples and Python library usage
 - `docs/cache.md` — cache design, TTL policy, and implementation details
 - `docs/roadmap.md` — development roadmap
-- `CLAUDE.md` — comprehensive architecture guide for AI coding assistants
+- `AGENTS.md` — comprehensive architecture guide for AI coding assistants
 
 ---
 

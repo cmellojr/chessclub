@@ -508,7 +508,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the full plan.
 
 ## Contributing
 
-Target all pull requests at `develop`, not `main`. See [CLAUDE.md](CLAUDE.md)
+Target all pull requests at `develop`, not `main`. See [AGENTS.md](AGENTS.md)
 for architecture conventions, dependency rules, and code style.
 
 ---
